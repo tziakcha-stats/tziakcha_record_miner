@@ -6,6 +6,8 @@ on:
       - 'src/**/*.cc'
       - 'src/**/*.cpp'
       - 'src/**/*.h'
+      - 'includes/**/*.h'
+      - 'test/**/*.cpp'
       - '.clang-format'
       - '.github/workflows/format.yml'
   push:
@@ -13,6 +15,8 @@ on:
       - 'src/**/*.cc'
       - 'src/**/*.cpp'
       - 'src/**/*.h'
+      - 'includes/**/*.h'
+      - 'test/**/*.cpp'
       - '.clang-format'
       - '.github/workflows/format.yml'
   workflow_dispatch:

@@ -1,0 +1,89 @@
+name: Format
+
+on:
+  pull_request:
+    paths:
+      - 'src/**/*.cc'
+      - 'src/**/*.cpp'
+      - 'src/**/*.h'
+      - '.clang-format'
+      - '.github/workflows/format.yml'
+  push:
+    paths:
+      - 'src/**/*.cc'
+      - 'src/**/*.cpp'
+      - 'src/**/*.h'
+      - '.clang-format'
+      - '.github/workflows/format.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  clang-format:
+    name: Run clang-format
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: false
+          fetch-depth: 0
+          persist-credentials: true
+
+      - name: Install clang-format
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y clang-format
+
+      - name: Run clang-format
+        run: |
+          set -euo pipefail
+          find src -type f \( -name '*.cc' -o -name '*.cpp' -o -name '*.h' \) -print0 \
+            | xargs -0 -n50 clang-format -i
+
+      - name: Check formatting diff
+        id: format_diff
+        run: |
+          set -euo pipefail
+          if git diff --quiet; then
+            echo "clean=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "clean=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Write clang-format patch
+        if: steps.format_diff.outputs.clean == 'false'
+        run: |
+          set -euo pipefail
+          git diff > /tmp/clang-format.patch
+          echo "Formatting changes detected. Patch stored at /tmp/clang-format.patch"
+
+      - name: Upload clang-format patch
+        if: steps.format_diff.outputs.clean == 'false'
+        uses: actions/upload-artifact@v4
+        with:
+          name: clang-format-patch
+          path: /tmp/clang-format.patch
+
+      - name: Auto-commit formatting changes
+        if: steps.format_diff.outputs.clean == 'false' && github.event_name != 'pull_request'
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -am "chore: apply clang-format"
+          git push
+
+      - name: Auto-commit on PR (same repo)
+        if: steps.format_diff.outputs.clean == 'false' && github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -am "chore: apply clang-format"
+          # Push back to the PR branch
+          git push origin "HEAD:${{ github.head_ref }}"

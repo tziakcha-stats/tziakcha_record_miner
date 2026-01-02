@@ -1,4 +1,5 @@
 #include "fetcher/record_fetcher.h"
+#include "fetcher/record_parser.h"
 #include "config/fetcher_config.h"
 #include <httplib.h>
 #include <glog/logging.h>
@@ -68,7 +69,17 @@ bool RecordFetcher::fetch_record(const std::string& record_id,
 
     std::string key = output_key.empty() ? "origin/" + record_id : output_key;
 
-    if (!storage_->save_json(key, response->body)) {
+    json record_data;
+    try {
+      record_data = json::parse(response->body);
+    } catch (const std::exception& e) {
+      LOG(ERROR) << "Failed to parse record JSON: " << e.what();
+      return false;
+    }
+
+    json processed_record = RecordParser::merge_record_with_script(record_data);
+
+    if (!storage_->save_json(key, processed_record)) {
       LOG(ERROR) << "Failed to save record " << record_id << " to storage";
       return false;
     }

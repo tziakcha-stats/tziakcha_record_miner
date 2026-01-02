@@ -7,6 +7,8 @@
 #include <cstdlib>
 #include <iostream>
 #include <filesystem>
+#include <chrono>
+#include <thread>
 #include <glog/logging.h>
 
 namespace fs = std::filesystem;
@@ -20,6 +22,7 @@ void print_usage() {
   std::cout << "  sessions    Fetch session records from history\n";
   std::cout << "  session     Fetch a single session by ID\n";
   std::cout << "  record      Fetch a single record by ID\n";
+  std::cout << "  records     Batch fetch records from session JSON\n";
   std::cout << "  help        Show this help message\n\n";
   std::cout << "Run 'fetcher_cli <command> --help' for more information on a "
                "command.\n";
@@ -328,6 +331,156 @@ int cmd_record(int argc, char* argv[]) {
   return 0;
 }
 
+int cmd_records(int argc, char* argv[]) {
+  cxxopts::Options options(
+      "fetcher_cli records", "Batch fetch records from session JSON");
+  options.add_options()(
+      "c,config",
+      "Path to configuration file",
+      cxxopts::value<std::string>()->default_value(
+          "config/fetcher_config.json"))(
+      "d,data-dir",
+      "Data storage directory",
+      cxxopts::value<std::string>()->default_value("data"))(
+      "i,input",
+      "Input session JSON key (e.g., sessions/all_record)",
+      cxxopts::value<std::string>()->default_value("sessions/all_record"))(
+      "o,output-dir",
+      "Output directory for records",
+      cxxopts::value<std::string>()->default_value("record"))(
+      "l,limit",
+      "Limit number of records to fetch (0 = no limit)",
+      cxxopts::value<int>()->default_value("0"))(
+      "delay",
+      "Delay between requests in milliseconds",
+      cxxopts::value<int>()->default_value("500"))(
+      "skip-existing",
+      "Skip records that already exist in storage",
+      cxxopts::value<bool>()->default_value("true"))("h,help", "Print help");
+
+  auto result = options.parse(argc, argv);
+
+  if (result.count("help")) {
+    std::cout << options.help() << std::endl;
+    return 0;
+  }
+
+  std::string config_file = result["config"].as<std::string>();
+  if (!fs::exists(config_file)) {
+    std::cerr << "Error: Configuration file not found: " << config_file
+              << std::endl;
+    return 1;
+  }
+
+  auto& config = tziakcha::config::FetcherConfig::instance();
+  if (!config.load(config_file)) {
+    std::cerr << "Error: Failed to load configuration file" << std::endl;
+    return 1;
+  }
+
+  std::string data_dir   = result["data-dir"].as<std::string>();
+  std::string input_key  = result["input"].as<std::string>();
+  std::string output_dir = result["output-dir"].as<std::string>();
+  int limit              = result["limit"].as<int>();
+  int delay_ms           = result["delay"].as<int>();
+  bool skip_existing     = result["skip-existing"].as<bool>();
+
+  auto storage =
+      std::make_shared<tziakcha::storage::FileSystemStorage>(data_dir);
+
+  json session_json;
+  if (!storage->load_json(input_key, session_json)) {
+    LOG(ERROR) << "Failed to load session JSON from: " << input_key;
+    return 1;
+  }
+
+  std::vector<std::string> record_ids;
+  if (session_json.is_array()) {
+    for (const auto& session : session_json) {
+      if (session.contains("records") && session["records"].is_array()) {
+        for (const auto& record_id : session["records"]) {
+          if (record_id.is_string()) {
+            record_ids.push_back(record_id.get<std::string>());
+          }
+        }
+      } else if (session.contains("l") && session["l"].is_array()) {
+        for (const auto& record_id : session["l"]) {
+          if (record_id.is_string()) {
+            record_ids.push_back(record_id.get<std::string>());
+          }
+        }
+      }
+    }
+  } else if (session_json.is_object()) {
+    if (session_json.contains("records") &&
+        session_json["records"].is_array()) {
+      for (const auto& record_id : session_json["records"]) {
+        if (record_id.is_string()) {
+          record_ids.push_back(record_id.get<std::string>());
+        }
+      }
+    } else if (session_json.contains("l") && session_json["l"].is_array()) {
+      for (const auto& record_id : session_json["l"]) {
+        if (record_id.is_string()) {
+          record_ids.push_back(record_id.get<std::string>());
+        }
+      }
+    }
+  }
+
+  if (record_ids.empty()) {
+    LOG(WARNING) << "No record IDs found in session JSON";
+    return 1;
+  }
+
+  LOG(INFO) << "Found " << record_ids.size() << " record IDs";
+
+  if (limit > 0 && limit < static_cast<int>(record_ids.size())) {
+    record_ids.resize(limit);
+    LOG(INFO) << "Limited to " << limit << " records";
+  }
+
+  tziakcha::fetcher::RecordFetcher fetcher(storage);
+  int success_count = 0;
+  int skip_count    = 0;
+  int fail_count    = 0;
+
+  for (size_t i = 0; i < record_ids.size(); ++i) {
+    const auto& record_id  = record_ids[i];
+    std::string output_key = output_dir + "/" + record_id;
+
+    if (skip_existing && storage->exists(output_key)) {
+      LOG(INFO) << "[" << (i + 1) << "/" << record_ids.size()
+                << "] Skipping existing record: " << record_id;
+      skip_count++;
+      continue;
+    }
+
+    LOG(INFO) << "[" << (i + 1) << "/" << record_ids.size()
+              << "] Fetching record: " << record_id;
+
+    if (fetcher.fetch_record(record_id, output_key)) {
+      success_count++;
+      LOG(INFO) << "  Successfully fetched: " << record_id;
+    } else {
+      fail_count++;
+      LOG(ERROR) << "  Failed to fetch: " << record_id;
+    }
+
+    if (i < record_ids.size() - 1 && delay_ms > 0) {
+      std::this_thread::sleep_for(std::chrono::milliseconds(delay_ms));
+    }
+  }
+
+  std::cout << "\n=== Batch Fetch Summary ===\n";
+  std::cout << "Total records: " << record_ids.size() << "\n";
+  std::cout << "Successfully fetched: " << success_count << "\n";
+  std::cout << "Skipped (existing): " << skip_count << "\n";
+  std::cout << "Failed: " << fail_count << "\n";
+
+  return (fail_count > 0) ? 1 : 0;
+}
+
 int main(int argc, char* argv[]) {
   google::InitGoogleLogging(argv[0]);
   FLAGS_logtostderr = true;
@@ -351,6 +504,8 @@ int main(int argc, char* argv[]) {
     return cmd_session(argc - 1, argv + 1);
   } else if (command == "record") {
     return cmd_record(argc - 1, argv + 1);
+  } else if (command == "records") {
+    return cmd_records(argc - 1, argv + 1);
   } else {
     std::cerr << "Unknown command: " << command << std::endl;
     std::cerr << "Run 'fetcher_cli help' for usage." << std::endl;

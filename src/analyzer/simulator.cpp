@@ -151,7 +151,8 @@ void RecordSimulator::ProcessAllActions() {
             continue;
           }
 
-          if (prev_type == 7 && prev_action.player_idx == winner_idx) {
+          if ((prev_type == 7 || prev_type == 1) &&
+              prev_action.player_idx == winner_idx) {
             is_self_drawn = true;
           }
           break;

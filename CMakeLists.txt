@@ -14,5 +14,7 @@ add_subdirectory(third_party/glog)
 add_subdirectory(third_party/cxxopts)
 set(BUILD_TESTING ON)
 
+add_subdirectory(third_party/json)
+
 add_subdirectory(src)
 add_subdirectory(test)

@@ -1,0 +1,28 @@
+{
+    "http": {
+        "base_url": "tziakcha.net",
+        "use_ssl": true,
+        "history_endpoint": "/_qry/history/",
+        "game_endpoint": "/_qry/game",
+        "record_endpoint": "/record/",
+        "timeout_ms": 30000
+    },
+    "headers": {
+        "accept": "*/*",
+        "accept_language": "zh-CN,zh;q=0.9,en-GB;q=0.8,en;q=0.7,en-US;q=0.6",
+        "content_type": "text/plain;charset=UTF-8",
+        "priority": "",
+        "sec_ch_ua": "",
+        "sec_ch_ua_mobile": "",
+        "sec_ch_ua_platform": "",
+        "sec_fetch_dest": "",
+        "sec_fetch_mode": "",
+        "sec_fetch_site": "",
+        "referrer": "https://tziakcha.net/history/",
+        "user_agent": ""
+    },
+    "fetcher": {
+        "max_pages": 10,
+        "output_file": "record_lists.json"
+    }
+}

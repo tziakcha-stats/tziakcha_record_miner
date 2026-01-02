@@ -24,6 +24,7 @@ target_link_libraries(fetcher PUBLIC
     OpenSSL::SSL
     OpenSSL::Crypto
     ZLIB::ZLIB
+    utils
 )
 
 add_executable(fetcher_cli 

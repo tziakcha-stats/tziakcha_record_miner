@@ -12,6 +12,7 @@ add_library(fan_calculator_core STATIC
     fan_calculator.cpp
     ${GB_MAHJONG_SOURCES}
 )
+set_target_properties(fan_calculator_core PROPERTIES POSITION_INDEPENDENT_CODE ON)
 
 target_include_directories(fan_calculator_core PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/../../include

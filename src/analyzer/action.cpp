@@ -52,15 +52,17 @@ void ActionProcessor::ProcessAction(const Action& action) {
     if (data == 0)
       break;
     int tile_val        = (data & 0x3F) << 2;
+    int actual_tile     = tile_val + ((data >> 10) & 3);
     int offer_direction = (data >> 6) & 3;
-    ProcessPengAction(p_idx, tile_val, offer_direction);
+    ProcessPengAction(p_idx, actual_tile, offer_direction);
     break;
   }
   case 5: {
     if (data == 0)
       break;
-    int tile_val = (data & 0x3F) << 2;
-    ProcessGangAction(p_idx, tile_val, data);
+    int tile_val    = (data & 0x3F) << 2;
+    int actual_tile = tile_val + ((data >> 10) & 3);
+    ProcessGangAction(p_idx, actual_tile, data);
     break;
   }
   case 6: {
@@ -346,6 +348,11 @@ void ActionProcessor::RemoveNTilesFromHand(
     } else {
       ++it;
     }
+  }
+
+  if (removed < count) {
+    LOG(WARNING) << "  Only removed " << removed << " tiles, expected " << count
+                 << " for tile_base=" << tile_base;
   }
 }
 

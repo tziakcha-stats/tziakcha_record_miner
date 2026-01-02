@@ -18,7 +18,8 @@ public:
       const std::vector<int>& hand_tiles,
       const std::vector<std::vector<int>>& packs,
       const std::vector<int>& pack_directions,
-      int win_tile = -1);
+      int win_tile       = -1,
+      bool is_self_drawn = false);
 
   static std::string BuildEnvFlag(
       char round_wind,

@@ -69,6 +69,10 @@ void RecordSimulator::ProcessGameInfoAndSetup() {
   }
 
   LOG(INFO) << "Wall loaded with " << wall_indices.size() << " tiles";
+  LOG(INFO) << "DEBUG: First 20 wall tiles: ";
+  for (size_t i = 0; i < std::min(size_t(20), wall_indices.size()); ++i) {
+    LOG(INFO) << "  wall[" << i << "] = " << wall_indices[i];
+  }
 
   if (!script_data.contains("d")) {
     LOG(ERROR) << "Dice data not found in script";
@@ -134,21 +138,67 @@ void RecordSimulator::ProcessAllActions() {
 
     int a_type = action.action_type;
     if (a_type == 6) {
-      int winner_idx     = action.player_idx;
-      int last_discarder = state_.GetCurrentPlayerIdx();
-      int fan_count      = action.data >> 1;
+      int winner_idx = action.player_idx;
+      int fan_count  = action.data >> 1;
 
-      int expected_drawer = (last_discarder + 1) % 4;
-      bool is_self_drawn  = (winner_idx == expected_drawer);
+      bool is_self_drawn = false;
+      if (action_idx > 0) {
+        for (int i = action_idx - 1; i >= 0; --i) {
+          const auto& prev_action = actions[i];
+          int prev_type           = prev_action.action_type;
+
+          if (prev_type == 8 || prev_type == 9) {
+            continue;
+          }
+
+          if (prev_type == 7 && prev_action.player_idx == winner_idx) {
+            is_self_drawn = true;
+          }
+          break;
+        }
+      }
+
+      const auto& script_data = parser_.GetScriptData();
+      if (script_data.contains("b")) {
+        int win_flags        = script_data["b"].get<int>();
+        int script_winner    = -1;
+        int script_discarder = -1;
+
+        for (int i = 0; i < 4; ++i) {
+          if ((win_flags & (1 << i)) != 0) {
+            script_winner = i;
+          }
+          if ((win_flags & (1 << (i + 4))) != 0) {
+            script_discarder = i;
+          }
+        }
+
+        bool script_is_self_drawn =
+            (script_discarder < 0 || script_discarder == script_winner);
+
+        if (script_winner >= 0 && script_winner == winner_idx) {
+          if (is_self_drawn != script_is_self_drawn) {
+            LOG(ERROR) << "ASSERTION FAILED: is_self_drawn mismatch!";
+            LOG(ERROR) << "  Deduced from actions: "
+                       << (is_self_drawn ? "true" : "false");
+            LOG(ERROR) << "  From script data: "
+                       << (script_is_self_drawn ? "true" : "false");
+            LOG(ERROR) << "  Script discarder_idx: " << script_discarder;
+            is_self_drawn = script_is_self_drawn;
+          } else {
+            LOG(INFO) << "is_self_drawn validation passed: "
+                      << (is_self_drawn ? "SELF-DRAWN" : "OTHERS-WIN");
+          }
+        }
+      }
 
       LOG(INFO) << "=== PLAYER HU ATTEMPT ===";
       LOG(INFO) << "Winner idx: " << winner_idx << " ("
                 << game_log_.player_names[winner_idx] << ", "
                 << base::WIND[winner_idx] << ") with " << fan_count
                 << " fan(s)";
-      LOG(INFO) << "Last discarder: " << last_discarder
-                << ", Expected drawer: " << expected_drawer;
-      LOG(INFO) << "Is self-drawn: " << (is_self_drawn ? "YES" : "NO");
+      LOG(INFO) << "Is self-drawn: "
+                << (is_self_drawn ? "YES (自摸)" : "NO (点和)");
 
       if (fan_count == 0) {
         LOG(WARNING) << "ERROR HU (错和)! Game continues...";
@@ -232,7 +282,7 @@ void RecordSimulator::ExtractWinInfoFromScript() {
     }
   }
 
-  bool is_self_drawn = (discarder_idx < 0);
+  bool is_self_drawn = (discarder_idx < 0 || discarder_idx == winner_idx);
 
   LOG(INFO) << "Extracting win info from script data:";
   LOG(INFO) << "  Winner: " << game_log_.player_names[winner_idx] << " ("
@@ -357,6 +407,7 @@ std::string RecordSimulator::BuildActionDescription(const Action& action) {
       break;
     }
     int tile_val            = (data & 0x3F) << 2;
+    int actual_tile         = tile_val + ((data >> 10) & 3);
     int offer_direction     = (data >> 6) & 3;
     std::string action_name = base::PACK_ACTION_MAP.at(a_type);
 
@@ -365,10 +416,10 @@ std::string RecordSimulator::BuildActionDescription(const Action& action) {
       if (last_discard >= 0) {
         desc << action_name << " " << utils::Tile::ToString(last_discard);
       } else {
-        desc << action_name << " " << utils::Tile::ToString(tile_val);
+        desc << action_name << " " << utils::Tile::ToString(actual_tile);
       }
     } else {
-      desc << action_name << " " << utils::Tile::ToString(tile_val);
+      desc << action_name << " " << utils::Tile::ToString(actual_tile);
     }
     break;
   }

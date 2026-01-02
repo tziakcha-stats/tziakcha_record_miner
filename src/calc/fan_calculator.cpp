@@ -57,13 +57,27 @@ bool FanCalculator::CalculateFan() {
   }
 
   LOG(INFO) << "Starting fan calculation";
-  fan_.CountFan(handtiles_);
-  is_calculated_ = true;
 
-  LOG(INFO) << "Fan calculation completed. Total fan: " << fan_.tot_fan_res;
-  LOG(INFO) << "Number of different fan patterns: " << GetFanDetails().size();
+  try {
+    if (handtiles_.HandtilesToString() == "") {
+      LOG(ERROR) << "handtiles.handtiles is null";
+      return false;
+    }
 
-  return true;
+    fan_.CountFan(handtiles_);
+    is_calculated_ = true;
+
+    LOG(INFO) << "Fan calculation completed. Total fan: " << fan_.tot_fan_res;
+    LOG(INFO) << "Number of different fan patterns: " << GetFanDetails().size();
+
+    return true;
+  } catch (const std::exception& e) {
+    LOG(ERROR) << "Exception in CountFan: " << e.what();
+    return false;
+  } catch (...) {
+    LOG(ERROR) << "Unknown exception in CountFan";
+    return false;
+  }
 }
 
 int FanCalculator::GetTotalFan() const {

@@ -143,7 +143,8 @@ std::string GBFormatConverter::BuildCompleteHandString(
     const std::vector<int>& hand_tiles,
     const std::vector<std::vector<int>>& packs,
     const std::vector<int>& pack_directions,
-    int win_tile) {
+    int win_tile,
+    bool is_self_drawn) {
   std::ostringstream result;
 
   for (size_t i = 0; i < packs.size(); ++i) {
@@ -153,15 +154,34 @@ std::string GBFormatConverter::BuildCompleteHandString(
     }
   }
 
-  result << ConvertHandTilesToGB(hand_tiles, true);
+  if (is_self_drawn && win_tile >= 0) {
+    std::vector<int> hand_without_win = hand_tiles;
+    auto it =
+        std::find(hand_without_win.begin(), hand_without_win.end(), win_tile);
+    if (it != hand_without_win.end()) {
+      hand_without_win.erase(it);
+    }
 
-  if (win_tile >= 0) {
+    result << ConvertHandTilesToGB(hand_without_win, true);
+
     if (win_tile < 108) {
       int base = win_tile >> 2;
       int num  = (base % 9) + 1;
       result << num << GetSuitChar(win_tile);
     } else if (win_tile < 136) {
       result << GetTileChar(win_tile);
+    }
+  } else {
+    result << ConvertHandTilesToGB(hand_tiles, true);
+
+    if (!is_self_drawn && win_tile >= 0) {
+      if (win_tile < 108) {
+        int base = win_tile >> 2;
+        int num  = (base % 9) + 1;
+        result << num << GetSuitChar(win_tile);
+      } else if (win_tile < 136) {
+        result << GetTileChar(win_tile);
+      }
     }
   }
 
@@ -219,7 +239,7 @@ std::string GBFormatConverter::BuildFullGBString(
   std::ostringstream result;
 
   result << BuildCompleteHandString(
-      hand_tiles, packs, pack_directions, win_tile);
+      hand_tiles, packs, pack_directions, win_tile, is_self_drawn);
 
   result << "|"
          << BuildEnvFlag(round_wind,

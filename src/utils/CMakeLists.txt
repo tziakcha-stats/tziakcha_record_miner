@@ -1,6 +1,7 @@
 add_library(utils
     script_decoder.cpp
     tile.cpp
+    gb_format_converter.cpp
     ../../third_party/cpp-base64/base64.cpp
 )
 

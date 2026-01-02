@@ -1,144 +1,188 @@
-#include <iostream>
-#include <string>
-#include <glog/logging.h>
-#include <cxxopts.hpp>
 #include "calc/fan_calculator.h"
+#include <glog/logging.h>
+#include "print.h"
+#include "console.h"
 
-void PrintUsageExamples() {
-  std::cout << "Examples:\n";
-  std::cout << "  1. Simple winning hand:\n";
-  std::cout << "     fan_calculator \"[123m,1][123p,1]123m12p44s3p\"\n\n";
-  std::cout << "  2. With flowers and situation:\n";
-  std::cout << "     fan_calculator \"11123456789999m|EE1000|cbaghdfe\"\n\n";
-  std::cout << "  3. With verbose logging:\n";
-  std::cout << "     fan_calculator \"123789s123789p33m\" --verbose\n";
+namespace calc {
+
+FanCalculator::FanCalculator() : is_parsed_(false), is_calculated_(false) {
+  LOG(INFO) << "FanCalculator initialized";
 }
 
-void PrintHandtilesFormat() {
-  std::cout << "\nHandtiles string format:\n";
-  std::cout << "  Basic tiles: [1-9]+[msp] for number tiles, [ESWNCFP] for "
-               "honor tiles\n";
-  std::cout << "  Melds: [XXX,N] for melded tiles (pung/kong/chow)\n";
-  std::cout << "  Situation: |WW0000 format (wind|self-drawn|absolute "
-               "terminal|sea bottom|kong rob)\n";
-  std::cout << "  Flowers: flowers count or names like |fah\n";
-}
+FanCalculator::~FanCalculator() { LOG(INFO) << "FanCalculator destroyed"; }
 
-int main(int argc, char* argv[]) {
-  google::InitGoogleLogging(argv[0]);
-
-  cxxopts::Options options(
-      "fan_calculator", "Mahjong Fan Calculator - GB Mahjong");
-
-  options.add_options()("h,help", "Print help information")(
-      "v,verbose", "Enable verbose logging output")(
-      "handtiles", "Handtiles string", cxxopts::value<std::string>())(
-      "example", "Show usage examples");
-
-  options.parse_positional({"handtiles"});
-  options.positional_help("<handtiles_string>");
+bool FanCalculator::ParseHandtiles(const std::string& handtiles_str) {
+  LOG(INFO) << "Parsing handtiles string: " << handtiles_str;
 
   try {
-    auto result = options.parse(argc, argv);
+    handtiles_.StringToHandtiles(handtiles_str);
+    is_parsed_     = true;
+    is_calculated_ = false;
 
-    if (result.count("help")) {
-      std::cout << options.help();
-      PrintHandtilesFormat();
-      return 0;
-    }
+    LOG(INFO) << "Handtiles parsed successfully";
+    LOG(INFO) << "Standard format: " << handtiles_.HandtilesToString();
 
-    if (result.count("example")) {
-      PrintUsageExamples();
-      return 0;
-    }
-
-    if (!result.count("handtiles")) {
-      std::cerr << "Error: handtiles string is required\n";
-      std::cout << "\n" << options.help();
-      return 1;
-    }
-
-    std::string handtiles_str = result["handtiles"].as<std::string>();
-
-    if (result.count("verbose")) {
-      FLAGS_logtostderr = 1;
-      FLAGS_v           = 1;
-    }
-
-    LOG(INFO) << "Starting fan calculation for handtiles: " << handtiles_str;
-
-    calc::FanCalculator calculator;
-
-    if (!calculator.ParseHandtiles(handtiles_str)) {
-      LOG(ERROR) << "Failed to parse handtiles string";
-      std::cerr << "Error: Invalid handtiles string\n";
-      return 1;
-    }
-
-    LOG(INFO) << "Parsed handtiles: "
-              << calculator.GetStandardHandtilesString();
-
-    if (!calculator.IsWinningHand()) {
-      LOG(WARNING) << "Not a winning hand";
-      std::cout << "Not a winning hand\n";
-      return 1;
-    }
-
-    LOG(INFO) << "Confirmed winning hand, proceeding with fan calculation";
-
-    if (!calculator.CalculateFan()) {
-      LOG(ERROR) << "Fan calculation failed";
-      std::cerr << "Error: Fan calculation failed\n";
-      return 1;
-    }
-
-    std::cout << "Handtiles: " << calculator.GetStandardHandtilesString()
-              << "\n";
-    std::cout << "Total Fan: " << calculator.GetTotalFan() << "\n\n";
-
-    auto fan_details = calculator.GetFanDetails();
-
-    if (fan_details.empty()) {
-      LOG(WARNING) << "No fan patterns found";
-      std::cout << "No fan patterns found\n";
-      return 1;
-    }
-
-    std::cout << "Fan Details:\n";
-    for (size_t i = 0; i < fan_details.size(); ++i) {
-      const auto& detail = fan_details[i];
-      std::cout << "  " << (i + 1) << ". " << detail.fan_name << " ("
-                << detail.fan_score << " fan)";
-
-      if (!detail.pack_descriptions.empty()) {
-        LOG(INFO) << "  Fan " << (i + 1) << ": " << detail.fan_name << " ("
-                  << detail.fan_score
-                  << " fan) - Packs: " << detail.pack_descriptions.size();
-        for (const auto& pack : detail.pack_descriptions) {
-          LOG(INFO) << "    Pack: " << pack;
-        }
-      }
-
-      std::cout << "\n";
-    }
-
-    LOG(INFO) << "Fan calculation completed successfully. Total: "
-              << calculator.GetTotalFan() << " fan, " << fan_details.size()
-              << " pattern(s)";
-
-    return 0;
-
-  } catch (const cxxopts::exceptions::exception& e) {
-    LOG(ERROR) << "Command line parsing error: " << e.what();
-    std::cerr << "Error: " << e.what() << "\n";
-    return 1;
+    return true;
   } catch (const std::exception& e) {
-    LOG(ERROR) << "Exception occurred: " << e.what();
-    std::cerr << "Error: " << e.what() << "\n";
-    return 1;
-  } catch (...) {
-    LOG(ERROR) << "Unknown exception occurred";
-    std::cerr << "Error: Unknown error occurred\n";
-    return 1;
+    LOG(ERROR) << "Failed to parse handtiles: " << e.what();
+    is_parsed_ = false;
+    return false;
   }
 }
+
+bool FanCalculator::IsWinningHand() const {
+  if (!is_parsed_) {
+    LOG(WARNING) << "Handtiles not parsed yet";
+    return false;
+  }
+
+  mahjong::Fan temp_fan;
+  bool is_winning = temp_fan.JudgeHu(handtiles_);
+
+  LOG(INFO) << "IsWinningHand check result: "
+            << (is_winning ? "true" : "false");
+
+  return is_winning;
+}
+
+bool FanCalculator::CalculateFan() {
+  if (!is_parsed_) {
+    LOG(ERROR) << "Cannot calculate fan: handtiles not parsed";
+    return false;
+  }
+
+  if (!IsWinningHand()) {
+    LOG(WARNING) << "Cannot calculate fan: not a winning hand";
+    return false;
+  }
+
+  LOG(INFO) << "Starting fan calculation";
+  fan_.CountFan(handtiles_);
+  is_calculated_ = true;
+
+  LOG(INFO) << "Fan calculation completed. Total fan: " << fan_.tot_fan_res;
+  LOG(INFO) << "Number of different fan patterns: " << GetFanDetails().size();
+
+  return true;
+}
+
+int FanCalculator::GetTotalFan() const {
+  if (!is_calculated_) {
+    LOG(WARNING) << "Fan not calculated yet";
+    return 0;
+  }
+
+  return fan_.tot_fan_res;
+}
+
+std::string FanCalculator::GetStandardHandtilesString() const {
+  if (!is_parsed_) {
+    LOG(WARNING) << "Handtiles not parsed yet";
+    return "";
+  }
+
+  return handtiles_.HandtilesToString();
+}
+
+std::vector<FanResult> FanCalculator::GetFanDetails() const {
+  std::vector<FanResult> results;
+
+  if (!is_calculated_) {
+    LOG(WARNING) << "Fan not calculated yet";
+    return results;
+  }
+
+  LOG(INFO) << "Collecting fan details";
+
+  for (int i = 1; i < mahjong::FAN_SIZE; i++) {
+    if (fan_.fan_table_res[i].empty()) {
+      continue;
+    }
+
+    for (size_t j = 0; j < fan_.fan_table_res[i].size(); j++) {
+      FanResult result;
+      result.fan_name  = mahjong::FAN_NAME[i];
+      result.fan_score = mahjong::FAN_SCORE[i];
+
+      for (auto pid : fan_.fan_table_res[i][j]) {
+        std::string pack_desc = PackToEmojiString(fan_.fan_packs_res[pid]);
+        result.pack_descriptions.push_back(pack_desc);
+      }
+
+      results.push_back(result);
+
+      LOG(INFO) << "Fan detail: " << result.fan_name << " (" << result.fan_score
+                << " fan) " << "with " << result.pack_descriptions.size()
+                << " pack(s)";
+    }
+  }
+
+  LOG(INFO) << "Total fan details collected: " << results.size();
+
+  return results;
+}
+
+std::vector<FanTypeInfo> FanCalculator::GetFanTypesSummary() const {
+  std::vector<FanTypeInfo> summary;
+
+  if (!is_calculated_) {
+    LOG(WARNING) << "Fan not calculated yet";
+    return summary;
+  }
+
+  for (int i = 1; i < mahjong::FAN_SIZE; i++) {
+    int count = fan_.fan_table_res[i].size();
+    if (count > 0) {
+      FanTypeInfo info;
+      info.fan_type      = static_cast<mahjong::fan_t>(i);
+      info.fan_name      = mahjong::FAN_NAME[i];
+      info.count         = count;
+      info.score_per_fan = mahjong::FAN_SCORE[i];
+      info.total_score   = count * mahjong::FAN_SCORE[i];
+      summary.push_back(info);
+
+      LOG(INFO) << "Fan type: " << info.fan_name << ", count: " << info.count
+                << ", score_per_fan: " << info.score_per_fan
+                << ", total: " << info.total_score;
+    }
+  }
+
+  return summary;
+}
+
+int FanCalculator::GetFanTypeCount(mahjong::fan_t fan_type) const {
+  if (!is_calculated_) {
+    LOG(WARNING) << "Fan not calculated yet";
+    return 0;
+  }
+
+  if (fan_type <= 0 || fan_type >= mahjong::FAN_SIZE) {
+    LOG(ERROR) << "Invalid fan type: " << fan_type;
+    return 0;
+  }
+
+  return fan_.fan_table_res[fan_type].size();
+}
+
+bool FanCalculator::HasFanType(mahjong::fan_t fan_type) const {
+  return GetFanTypeCount(fan_type) > 0;
+}
+
+std::vector<mahjong::fan_t> FanCalculator::GetAllFanTypes() const {
+  std::vector<mahjong::fan_t> types;
+
+  if (!is_calculated_) {
+    LOG(WARNING) << "Fan not calculated yet";
+    return types;
+  }
+
+  for (int i = 1; i < mahjong::FAN_SIZE; i++) {
+    if (fan_.fan_table_res[i].size() > 0) {
+      types.push_back(static_cast<mahjong::fan_t>(i));
+    }
+  }
+
+  return types;
+}
+
+} // namespace calc

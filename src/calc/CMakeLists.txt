@@ -9,7 +9,7 @@ set(GB_MAHJONG_SOURCES
 )
 
 add_library(fan_calculator_core STATIC
-    fan_calculator_core.cpp
+    fan_calculator.cpp
     ${GB_MAHJONG_SOURCES}
 )
 
@@ -23,15 +23,15 @@ target_link_libraries(fan_calculator_core PUBLIC
     glog::glog
 )
 
-add_executable(fan_calculator 
-    fan_calculator.cpp
+add_executable(calc_cli 
+    calc_cli.cpp
 )
 
-target_include_directories(fan_calculator PRIVATE
+target_include_directories(calc_cli PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/../../include
 )
 
-target_link_libraries(fan_calculator PRIVATE
+target_link_libraries(calc_cli PRIVATE
     fan_calculator_core
     cxxopts
 )

@@ -1,6 +1,7 @@
 #include "utils/gb_format_converter.h"
 #include "utils/tile.h"
 #include <algorithm>
+#include <array>
 #include <map>
 #include <sstream>
 

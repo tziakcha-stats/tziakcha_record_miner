@@ -1,4 +1,5 @@
 #include "analyzer/game_state.h"
+#include "base/mahjong_constants.h"
 #include <algorithm>
 #include <glog/logging.h>
 
@@ -44,10 +45,13 @@ void GameState::SetupWallAndDeal(const std::vector<int>& wall_indices,
                                  int dealer_idx) {
   dealer_idx_ = dealer_idx;
 
-  int wall_break_pos = (dealer_idx - (dice[0] + dice[1] - 1) + 4) % 4;
+  int wall_break_pos = (dealer_idx - (dice[0] + dice[1] - 1) + 12) % 4;
   int start_pos =
       (wall_break_pos * 36) + (dice[0] + dice[1] + dice[2] + dice[3]) * 2;
   start_pos = start_pos % 144;
+
+  LOG(INFO) << "Setting up wall with break position at index: "
+            << wall_break_pos << ", start_pos: " << start_pos;
 
   wall_.clear();
   wall_.insert(
@@ -57,6 +61,12 @@ void GameState::SetupWallAndDeal(const std::vector<int>& wall_indices,
 
   wall_front_ptr_ = 0;
   wall_back_ptr_  = wall_.size() - 1;
+
+  LOG(INFO) << "DEBUG: After wall setup, wall_ size=" << wall_.size();
+  LOG(INFO) << "DEBUG: First 20 tiles in wall_:";
+  for (size_t i = 0; i < std::min(size_t(20), wall_.size()); ++i) {
+    LOG(INFO) << "  wall_[" << i << "] = " << wall_[i];
+  }
 
   DealInitialTiles(dealer_idx);
 
@@ -83,6 +93,13 @@ void GameState::DealInitialTiles(int dealer_idx) {
   for (int i = 0; i < 4; ++i) {
     std::sort(hands_[i].begin(), hands_[i].end());
     initial_hands_[i] = hands_[i];
+
+    LOG(INFO) << "DEBUG: Player " << i << " hand after deal:";
+    for (size_t j = 0; j < hands_[i].size(); ++j) {
+      LOG(INFO) << "  [" << j << "] tile value=" << hands_[i][j]
+                << ", base=" << (hands_[i][j] >> 2)
+                << ", identity=" << base::TILE_IDENTITY[hands_[i][j] >> 2];
+    }
   }
 }
 

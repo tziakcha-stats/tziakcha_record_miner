@@ -37,8 +37,3 @@ add_unit_test(storage_test
 add_unit_test(mahjong_constants_test
     SOURCES mahjong_constants_test.cpp
 )
-
-add_unit_test(record_parser_test
-    SOURCES record_parser_test.cpp
-    LINK_LIBRARIES fetcher
-)

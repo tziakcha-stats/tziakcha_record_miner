@@ -305,7 +305,7 @@ int cmd_record(int argc, char* argv[]) {
   std::string data_dir  = result["data-dir"].as<std::string>();
   std::string output_key =
       result.count("output") ? result["output"].as<std::string>()
-                             : "origin/" + record_id;
+                             : "record/" + record_id;
 
   auto storage =
       std::make_shared<tziakcha::storage::FileSystemStorage>(data_dir);

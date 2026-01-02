@@ -2,7 +2,7 @@ add_library(fetcher
     history_fetcher.cpp
     session_fetcher.cpp
     record_fetcher.cpp
-    record_parser.cpp
+    ../../third_party/cpp-base64/base64.cpp
 )
 
 target_compile_definitions(fetcher PRIVATE CPPHTTPLIB_OPENSSL_SUPPORT)
@@ -11,6 +11,7 @@ target_include_directories(fetcher PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/../../include
     ${CMAKE_CURRENT_SOURCE_DIR}/../../third_party/cpp-httplib
     ${CMAKE_CURRENT_SOURCE_DIR}/../../third_party/json/include
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../third_party/cpp-base64
 )
 
 find_package(OpenSSL REQUIRED)

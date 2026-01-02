@@ -93,8 +93,8 @@ void ActionProcessor::ProcessAction(const Action& action) {
         : (pass_mode == 1) ? "auto"
                            : "forced";
 
-    LOG(INFO) << "  Player " << p_idx << " passed (" << mode_str << "): "
-              << "cannot chi/peng/gang";
+    LOG(INFO) << "  Player " << p_idx << " passed (" << mode_str
+              << "): " << "cannot chi/peng/gang";
     ProcessPass(p_idx);
     break;
   }

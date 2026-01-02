@@ -1,6 +1,7 @@
 #include <gtest/gtest.h>
 #include <filesystem>
 #include <fstream>
+#include <sstream>
 #include <nlohmann/json.hpp>
 #include "storage/filesystem_storage.h"
 
@@ -192,4 +193,61 @@ TEST_F(FileSystemStorageTest, FileHasValidJsonFormat) {
 
   EXPECT_EQ(file_content["key"], "value");
   EXPECT_EQ(file_content["number"], 42);
+}
+TEST_F(FileSystemStorageTest, PrintJsonToConsole) {
+  json test_data;
+  test_data["name"]   = "test_print";
+  test_data["id"]     = 999;
+  test_data["active"] = true;
+
+  EXPECT_TRUE(storage_->save_json("print/test", test_data));
+
+  std::stringstream buffer;
+  std::streambuf* old_cout = std::cout.rdbuf(buffer.rdbuf());
+
+  storage_->print_json("print/test");
+
+  std::cout.rdbuf(old_cout);
+
+  std::string output = buffer.str();
+  EXPECT_FALSE(output.empty());
+
+  json parsed_output = json::parse(output);
+  EXPECT_EQ(parsed_output["name"], "test_print");
+  EXPECT_EQ(parsed_output["id"], 999);
+  EXPECT_TRUE(parsed_output["active"]);
+}
+
+TEST_F(FileSystemStorageTest, PrintJsonWithCustomIndent) {
+  json test_data;
+  test_data["key"]   = "value";
+  test_data["array"] = json::array({1, 2, 3});
+
+  EXPECT_TRUE(storage_->save_json("print/indent", test_data));
+
+  std::stringstream buffer;
+  std::streambuf* old_cout = std::cout.rdbuf(buffer.rdbuf());
+
+  storage_->print_json("print/indent", 4);
+
+  std::cout.rdbuf(old_cout);
+
+  std::string output = buffer.str();
+  EXPECT_FALSE(output.empty());
+
+  json parsed_output = json::parse(output);
+  EXPECT_EQ(parsed_output["key"], "value");
+  EXPECT_EQ(parsed_output["array"].size(), 3);
+}
+
+TEST_F(FileSystemStorageTest, PrintJsonNonexistentFile) {
+  std::stringstream buffer;
+  std::streambuf* old_cout = std::cout.rdbuf(buffer.rdbuf());
+
+  storage_->print_json("nonexistent/key");
+
+  std::cout.rdbuf(old_cout);
+
+  std::string output = buffer.str();
+  EXPECT_TRUE(output.empty());
 }

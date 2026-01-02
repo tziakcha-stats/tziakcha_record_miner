@@ -18,6 +18,7 @@ public:
   virtual bool exists(const std::string& key)                           = 0;
   virtual bool remove(const std::string& key)                           = 0;
   virtual std::vector<std::string> list_keys(const std::string& prefix) = 0;
+  virtual void print_json(const std::string& key, int indent = 2)       = 0;
 };
 
 } // namespace storage

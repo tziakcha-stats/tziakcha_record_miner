@@ -41,6 +41,9 @@ public:
   bool save_results(const std::string& grouped_key = "sessions/all_record",
                     const std::string& map_key = "sessions/record_parent_map");
 
+  bool fetch_single_session(const std::string& session_id,
+                            const std::string& output_key);
+
 private:
   std::shared_ptr<storage::Storage> storage_;
   std::vector<SessionRecords> grouped_sessions_;

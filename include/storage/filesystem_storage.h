@@ -17,6 +17,7 @@ public:
   bool exists(const std::string& key) override;
   bool remove(const std::string& key) override;
   std::vector<std::string> list_keys(const std::string& prefix) override;
+  void print_json(const std::string& key, int indent = 2) override;
 
   std::string get_base_dir() const { return base_dir_.string(); }
 

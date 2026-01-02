@@ -4,7 +4,7 @@
         "use_ssl": true,
         "history_endpoint": "/_qry/history/",
         "game_endpoint": "/_qry/game",
-        "record_endpoint": "/record/",
+        "record_endpoint": "/_qry/record/",
         "timeout_ms": 30000
     },
     "headers": {

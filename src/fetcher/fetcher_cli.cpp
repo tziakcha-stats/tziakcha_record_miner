@@ -1,5 +1,6 @@
 #include "fetcher/history_fetcher.h"
 #include "fetcher/session_fetcher.h"
+#include "fetcher/record_fetcher.h"
 #include "config/fetcher_config.h"
 #include "storage/filesystem_storage.h"
 #include <cxxopts.hpp>
@@ -17,6 +18,8 @@ void print_usage() {
   std::cout << "Commands:\n";
   std::cout << "  history     Fetch game history from server\n";
   std::cout << "  sessions    Fetch session records from history\n";
+  std::cout << "  session     Fetch a single session by ID\n";
+  std::cout << "  record      Fetch a single record by ID\n";
   std::cout << "  help        Show this help message\n\n";
   std::cout << "Run 'fetcher_cli <command> --help' for more information on a "
                "command.\n";
@@ -37,7 +40,9 @@ int cmd_history(int argc, char* argv[]) {
       "Storage key for history",
       cxxopts::value<std::string>()->default_value("history/history"))(
       "f,filter", "Filter by title keyword", cxxopts::value<std::string>())(
-      "h,help", "Print help");
+      "p,print",
+      "Print JSON to console after fetching",
+      cxxopts::value<bool>()->default_value("false"))("h,help", "Print help");
 
   auto result = options.parse(argc, argv);
 
@@ -84,6 +89,11 @@ int cmd_history(int argc, char* argv[]) {
 
   LOG(INFO) << "History records saved to storage key: " << storage_key;
 
+  if (result["print"].as<bool>()) {
+    std::cout << "\n--- History JSON ---\n";
+    storage->print_json(storage_key);
+  }
+
   if (result.count("filter")) {
     std::string keyword = result["filter"].as<std::string>();
     auto filtered       = fetcher.filter_by_title(keyword);
@@ -117,7 +127,10 @@ int cmd_sessions(int argc, char* argv[]) {
       "m,map",
       "Output record parent map key",
       cxxopts::value<std::string>()->default_value(
-          "sessions/record_parent_map"))("h,help", "Print help");
+          "sessions/record_parent_map"))(
+      "p,print",
+      "Print grouped sessions JSON to console",
+      cxxopts::value<bool>()->default_value("false"))("h,help", "Print help");
 
   auto result = options.parse(argc, argv);
 
@@ -164,6 +177,154 @@ int cmd_sessions(int argc, char* argv[]) {
   std::cout << "Written record parent map to " << map_key << " (records="
             << fetcher.get_record_parent_map().size() << ")" << std::endl;
 
+  if (result["print"].as<bool>()) {
+    std::cout << "\n--- Grouped Sessions JSON ---\n";
+    storage->print_json(output_key);
+  }
+
+  return 0;
+}
+
+int cmd_session(int argc, char* argv[]) {
+  cxxopts::Options options(
+      "fetcher_cli session", "Fetch a single session by ID");
+  options.add_options()(
+      "c,config",
+      "Path to configuration file",
+      cxxopts::value<std::string>()->default_value(
+          "config/fetcher_config.json"))(
+      "d,data-dir",
+      "Data storage directory",
+      cxxopts::value<std::string>()->default_value("data"))(
+      "s,session-id",
+      "Session ID to fetch (e.g., TszL5UsT)",
+      cxxopts::value<std::string>())(
+      "o,output", "Output key for session data", cxxopts::value<std::string>())(
+      "p,print",
+      "Print JSON to console after fetching",
+      cxxopts::value<bool>()->default_value("false"))("h,help", "Print help");
+
+  auto result = options.parse(argc, argv);
+
+  if (result.count("help")) {
+    std::cout << options.help() << std::endl;
+    return 0;
+  }
+
+  if (!result.count("session-id")) {
+    std::cerr << "Error: Session ID is required (use -s or --session-id)"
+              << std::endl;
+    std::cout << options.help() << std::endl;
+    return 1;
+  }
+
+  std::string config_file = result["config"].as<std::string>();
+  if (!fs::exists(config_file)) {
+    std::cerr << "Error: Configuration file not found: " << config_file
+              << std::endl;
+    return 1;
+  }
+
+  auto& config = tziakcha::config::FetcherConfig::instance();
+  if (!config.load(config_file)) {
+    std::cerr << "Error: Failed to load configuration file" << std::endl;
+    return 1;
+  }
+
+  std::string session_id = result["session-id"].as<std::string>();
+  std::string data_dir   = result["data-dir"].as<std::string>();
+  std::string output_key =
+      result.count("output") ? result["output"].as<std::string>()
+                             : "sessions/" + session_id;
+
+  auto storage =
+      std::make_shared<tziakcha::storage::FileSystemStorage>(data_dir);
+
+  tziakcha::fetcher::SessionFetcher fetcher(storage);
+
+  if (!fetcher.fetch_single_session(session_id, output_key)) {
+    LOG(ERROR) << "Failed to fetch session: " << session_id;
+    return 1;
+  }
+
+  std::cout << "Successfully fetched session " << session_id << " to "
+            << output_key << std::endl;
+
+  if (result["print"].as<bool>()) {
+    std::cout << "\n--- Session JSON ---\n";
+    storage->print_json(output_key);
+  }
+
+  return 0;
+}
+
+int cmd_record(int argc, char* argv[]) {
+  cxxopts::Options options("fetcher_cli record", "Fetch a single record by ID");
+  options.add_options()(
+      "c,config",
+      "Path to configuration file",
+      cxxopts::value<std::string>()->default_value(
+          "config/fetcher_config.json"))(
+      "d,data-dir",
+      "Data storage directory",
+      cxxopts::value<std::string>()->default_value("data"))(
+      "r,record-id", "Record ID to fetch", cxxopts::value<std::string>())(
+      "o,output", "Output key for record data", cxxopts::value<std::string>())(
+      "p,print",
+      "Print JSON to console after fetching",
+      cxxopts::value<bool>()->default_value("false"))("h,help", "Print help");
+
+  auto result = options.parse(argc, argv);
+
+  if (result.count("help")) {
+    std::cout << options.help() << std::endl;
+    return 0;
+  }
+
+  if (!result.count("record-id")) {
+    std::cerr << "Error: Record ID is required (use -r or --record-id)"
+              << std::endl;
+    std::cout << options.help() << std::endl;
+    return 1;
+  }
+
+  std::string config_file = result["config"].as<std::string>();
+  if (!fs::exists(config_file)) {
+    std::cerr << "Error: Configuration file not found: " << config_file
+              << std::endl;
+    return 1;
+  }
+
+  auto& config = tziakcha::config::FetcherConfig::instance();
+  if (!config.load(config_file)) {
+    std::cerr << "Error: Failed to load configuration file" << std::endl;
+    return 1;
+  }
+
+  std::string record_id = result["record-id"].as<std::string>();
+  std::string data_dir  = result["data-dir"].as<std::string>();
+  std::string output_key =
+      result.count("output") ? result["output"].as<std::string>()
+                             : "origin/" + record_id;
+
+  auto storage =
+      std::make_shared<tziakcha::storage::FileSystemStorage>(data_dir);
+
+  tziakcha::fetcher::RecordFetcher fetcher(storage);
+
+  if (!fetcher.fetch_record(record_id, output_key)) {
+    LOG(ERROR) << "Failed to fetch record: " << record_id;
+    return 1;
+  }
+
+  std::cout << "Successfully fetched record " << record_id << " to "
+            << output_key << std::endl;
+
+  if (result["print"].as<bool>()) {
+    std::cout << "\n--- Record JSON ---\n";
+    storage->print_json(output_key);
+  }
+
   return 0;
 }
 
@@ -186,6 +347,10 @@ int main(int argc, char* argv[]) {
     return cmd_history(argc - 1, argv + 1);
   } else if (command == "sessions") {
     return cmd_sessions(argc - 1, argv + 1);
+  } else if (command == "session") {
+    return cmd_session(argc - 1, argv + 1);
+  } else if (command == "record") {
+    return cmd_record(argc - 1, argv + 1);
   } else {
     std::cerr << "Unknown command: " << command << std::endl;
     std::cerr << "Run 'fetcher_cli help' for usage." << std::endl;

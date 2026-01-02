@@ -1,6 +1,7 @@
 add_library(fetcher
     history_fetcher.cpp
     session_fetcher.cpp
+    record_fetcher.cpp
 )
 
 target_compile_definitions(fetcher PRIVATE CPPHTTPLIB_OPENSSL_SUPPORT)

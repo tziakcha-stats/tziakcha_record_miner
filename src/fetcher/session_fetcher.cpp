@@ -187,5 +187,31 @@ bool SessionFetcher::save_results(const std::string& grouped_key,
   return true;
 }
 
+bool SessionFetcher::fetch_single_session(const std::string& session_id,
+                                          const std::string& output_key) {
+  LOG(INFO) << "Fetching single session: " << session_id;
+
+  std::vector<std::string> records;
+  if (!fetch_session_records(session_id, "", records)) {
+    LOG(ERROR) << "Failed to fetch session records for: " << session_id;
+    return false;
+  }
+
+  json session_data;
+  session_data["session_id"]   = session_id;
+  session_data["records"]      = records;
+  session_data["record_count"] = records.size();
+
+  if (!storage_->save_json(output_key, session_data)) {
+    LOG(ERROR) << "Failed to save session data to: " << output_key;
+    return false;
+  }
+
+  LOG(INFO) << "Saved session " << session_id << " with " << records.size()
+            << " records to: " << output_key;
+
+  return true;
+}
+
 } // namespace fetcher
 } // namespace tziakcha

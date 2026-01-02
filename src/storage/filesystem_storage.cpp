@@ -1,5 +1,6 @@
 #include "storage/filesystem_storage.h"
 #include <fstream>
+#include <iostream>
 #include <sstream>
 #include <glog/logging.h>
 
@@ -153,6 +154,15 @@ FileSystemStorage::list_keys(const std::string& prefix) {
   }
 
   return keys;
+}
+
+void FileSystemStorage::print_json(const std::string& key, int indent) {
+  json data;
+  if (load_json(key, data)) {
+    std::cout << data.dump(indent) << std::endl;
+  } else {
+    LOG(ERROR) << "Failed to load JSON for key: " << key;
+  }
 }
 
 } // namespace storage

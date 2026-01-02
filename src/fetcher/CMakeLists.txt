@@ -15,6 +15,7 @@ find_package(OpenSSL REQUIRED)
 target_link_libraries(fetcher PUBLIC
     glog::glog
     fetcher_config
+    storage
     OpenSSL::SSL
     OpenSSL::Crypto
 )

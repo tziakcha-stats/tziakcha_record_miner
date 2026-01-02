@@ -28,3 +28,8 @@ add_unit_test(fan_calculator_test
     SOURCES fan_calculator_test.cpp
     LINK_LIBRARIES fan_calculator_core
 )
+
+add_unit_test(storage_test
+    SOURCES storage_test.cpp
+    LINK_LIBRARIES storage
+)

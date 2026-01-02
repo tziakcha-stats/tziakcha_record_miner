@@ -1,5 +1,6 @@
 #include "fetcher/history_fetcher.h"
 #include "config/fetcher_config.h"
+#include "storage/filesystem_storage.h"
 #include <httplib.h>
 #include <fstream>
 #include <sstream>
@@ -9,7 +10,12 @@
 namespace tziakcha {
 namespace fetcher {
 
-HistoryFetcher::HistoryFetcher() = default;
+HistoryFetcher::HistoryFetcher(std::shared_ptr<storage::Storage> storage)
+    : storage_(storage) {
+  if (!storage_) {
+    storage_ = std::make_shared<storage::FileSystemStorage>("data");
+  }
+}
 
 bool HistoryFetcher::fetch_page(
     const std::string& url, const std::string& headers, int page) {
@@ -105,23 +111,18 @@ bool HistoryFetcher::fetch_page(
   return false;
 }
 
-bool HistoryFetcher::save_records(const std::string& filename) const {
-  std::ofstream file(filename, std::ios::binary);
-  if (!file.is_open()) {
-    LOG(ERROR) << "Failed to open file for writing: " << filename;
+bool HistoryFetcher::save_records(const std::string& key) const {
+  json output(records_);
+  if (!storage_->save_json(key, output)) {
+    LOG(ERROR) << "Failed to save records to storage with key: " << key;
     return false;
   }
-
-  json output(records_);
-  file << output.dump(2);
-  file.close();
-
-  LOG(INFO) << "Saved " << records_.size() << " records to " << filename;
+  LOG(INFO) << "Saved " << records_.size()
+            << " records to storage key: " << key;
   return true;
 }
 
-bool HistoryFetcher::fetch(const std::string& cookie,
-                           const std::string& output_file) {
+bool HistoryFetcher::fetch(const std::string& cookie, const std::string& key) {
   auto& config = config::FetcherConfig::instance();
 
   records_.clear();
@@ -141,7 +142,7 @@ bool HistoryFetcher::fetch(const std::string& cookie,
 
   LOG(INFO) << "Finished fetching. Total records: " << records_.size();
 
-  return save_records(output_file);
+  return save_records(key);
 }
 
 std::vector<json>

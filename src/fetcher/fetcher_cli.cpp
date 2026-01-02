@@ -1,5 +1,6 @@
 #include "fetcher/history_fetcher.h"
 #include "config/fetcher_config.h"
+#include "storage/filesystem_storage.h"
 #include <cxxopts.hpp>
 #include <cstdlib>
 #include <iostream>
@@ -20,7 +21,9 @@ int main(int argc, char* argv[]) {
       "Path to configuration file",
       cxxopts::value<std::string>()->default_value(
           "config/fetcher_config.json"))(
-      "o,output", "Output file path", cxxopts::value<std::string>())(
+      "d,data-dir",
+      "Data storage directory",
+      cxxopts::value<std::string>()->default_value("data"))(
       "f,filter", "Filter by title keyword", cxxopts::value<std::string>())(
       "h,help", "Print help");
 
@@ -54,18 +57,18 @@ int main(int argc, char* argv[]) {
     return 1;
   }
 
-  std::string output_file =
-      result.count("output") ? result["output"].as<std::string>()
-                             : config.get_output_file();
+  std::string data_dir = result["data-dir"].as<std::string>();
+  auto storage =
+      std::make_shared<tziakcha::storage::FileSystemStorage>(data_dir);
 
-  tziakcha::fetcher::HistoryFetcher fetcher;
+  tziakcha::fetcher::HistoryFetcher fetcher(storage);
 
-  if (!fetcher.fetch(cookie, output_file)) {
+  if (!fetcher.fetch(cookie, "history/records")) {
     LOG(ERROR) << "Failed to fetch history records";
     return 1;
   }
 
-  LOG(INFO) << "History records saved to " << output_file;
+  LOG(INFO) << "History records saved to storage";
 
   if (result.count("filter")) {
     std::string keyword = result["filter"].as<std::string>();

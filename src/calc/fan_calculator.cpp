@@ -1,9 +1,26 @@
 #include "calc/fan_calculator.h"
+#include <execinfo.h>
 #include <glog/logging.h>
+#include <sstream>
 #include "print.h"
 #include "console.h"
 
 namespace calc {
+
+namespace {
+void LogStackTrace(const char* context) {
+  void* buffer[64];
+  int nptrs      = backtrace(buffer, 64);
+  char** strings = backtrace_symbols(buffer, nptrs);
+  std::ostringstream oss;
+  oss << "Stack trace (" << context << "):\n";
+  for (int i = 0; i < nptrs; ++i) {
+    oss << "  " << strings[i] << "\n";
+  }
+  free(strings);
+  LOG(ERROR) << oss.str();
+}
+} // namespace
 
 FanCalculator::FanCalculator() : is_parsed_(false), is_calculated_(false) {
   LOG(INFO) << "FanCalculator initialized";
@@ -25,6 +42,12 @@ bool FanCalculator::ParseHandtiles(const std::string& handtiles_str) {
     return true;
   } catch (const std::exception& e) {
     LOG(ERROR) << "Failed to parse handtiles: " << e.what();
+    LogStackTrace("ParseHandtiles std::exception");
+    is_parsed_ = false;
+    return false;
+  } catch (...) {
+    LOG(ERROR) << "Failed to parse handtiles: unknown exception";
+    LogStackTrace("ParseHandtiles unknown");
     is_parsed_ = false;
     return false;
   }
@@ -73,9 +96,11 @@ bool FanCalculator::CalculateFan() {
     return true;
   } catch (const std::exception& e) {
     LOG(ERROR) << "Exception in CountFan: " << e.what();
+    LogStackTrace("CalculateFan std::exception");
     return false;
   } catch (...) {
     LOG(ERROR) << "Unknown exception in CountFan";
+    LogStackTrace("CalculateFan unknown");
     return false;
   }
 }

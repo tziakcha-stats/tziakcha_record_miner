@@ -12,6 +12,7 @@ GameState::GameState()
       current_player_idx_(-1),
       dealer_idx_(0),
       last_action_was_kong_(false),
+      last_action_was_add_kong_(false),
       last_discard_tile_(-1),
       last_discard_player_(-1) {
   flower_counts_.fill(0);
@@ -23,6 +24,7 @@ void GameState::Reset() {
     hands_[i].clear();
     packs_[i].clear();
     pack_directions_[i].clear();
+    pack_offer_sequences_[i].clear();
     discards_[i].clear();
     flower_counts_[i] = 0;
     flower_tiles_[i].clear();
@@ -31,13 +33,14 @@ void GameState::Reset() {
   }
 
   wall_.clear();
-  wall_front_ptr_       = 0;
-  wall_back_ptr_        = 0;
-  current_player_idx_   = -1;
-  dealer_idx_           = 0;
-  last_action_was_kong_ = false;
-  last_discard_tile_    = -1;
-  last_discard_player_  = -1;
+  wall_front_ptr_           = 0;
+  wall_back_ptr_            = 0;
+  current_player_idx_       = -1;
+  dealer_idx_               = 0;
+  last_action_was_kong_     = false;
+  last_action_was_add_kong_ = false;
+  last_discard_tile_        = -1;
+  last_discard_player_      = -1;
 }
 
 void GameState::SetupWallAndDeal(const std::vector<int>& wall_indices,
@@ -129,6 +132,15 @@ GameState::GetPlayerPackDirections(int player_idx) const {
   return pack_directions_[player_idx];
 }
 
+std::vector<int>& GameState::GetPlayerPackOfferSequences(int player_idx) {
+  return pack_offer_sequences_[player_idx];
+}
+
+const std::vector<int>&
+GameState::GetPlayerPackOfferSequences(int player_idx) const {
+  return pack_offer_sequences_[player_idx];
+}
+
 std::vector<int>& GameState::GetPlayerDiscards(int player_idx) {
   return discards_[player_idx];
 }
@@ -165,6 +177,8 @@ int GameState::GetWallBackPtr() const { return wall_back_ptr_; }
 
 void GameState::AdvanceWallFrontPtr(int count) { wall_front_ptr_ += count; }
 
+void GameState::AdvanceWallBackPtr(int count) { wall_back_ptr_ += count; }
+
 const std::vector<int>& GameState::GetWall() const { return wall_; }
 
 int GameState::GetLastDrawTile(int player_idx) const {
@@ -178,6 +192,14 @@ void GameState::SetLastDrawTile(int player_idx, int tile) {
 bool GameState::IsLastActionKong() const { return last_action_was_kong_; }
 
 void GameState::SetLastActionKong(bool value) { last_action_was_kong_ = value; }
+
+bool GameState::IsLastActionAddKong() const {
+  return last_action_was_add_kong_;
+}
+
+void GameState::SetLastActionAddKong(bool value) {
+  last_action_was_add_kong_ = value;
+}
 
 int GameState::GetLastDiscardTile() const { return last_discard_tile_; }
 

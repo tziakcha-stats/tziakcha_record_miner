@@ -17,6 +17,12 @@ struct FanDetail {
   int count;
 };
 
+struct GBFanDetail {
+  std::string fan_name;
+  int fan_points;
+  int count;
+};
+
 struct WinAnalysis {
   int winner_idx;
   std::string winner_name;
@@ -27,6 +33,7 @@ struct WinAnalysis {
   int flower_count;
   std::string formatted_hand;
   std::vector<FanDetail> fan_details;
+  std::vector<GBFanDetail> gb_fan_details;
   std::string hand_string_for_gb;
   std::string env_flag;
   std::string gb_handtiles_string;
@@ -44,6 +51,10 @@ public:
 
   int CalculateFanWithGB(const std::string& gb_string);
 
+  const std::vector<GBFanDetail>& GetGBFanDetails() const {
+    return gb_fan_details_;
+  }
+
   bool IsLastCopyTile(int tile) const;
   bool IsSeaLastTile(bool is_self_drawn) const;
   bool IsRobbingKong(bool is_self_drawn) const;
@@ -55,6 +66,7 @@ private:
 
   const GameState* state_;
   json script_data_;
+  std::vector<GBFanDetail> gb_fan_details_;
 
   std::string BuildEnvFlag();
   std::string BuildHandStringForGB();

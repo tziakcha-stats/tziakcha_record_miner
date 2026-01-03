@@ -53,6 +53,7 @@ WinAnalysis WinAnalyzer::Analyze() {
   result.base_fan = calculated_fan_sum;
 
   result.calculated_fan = CalculateFanWithGB(result.hand_string_for_gb);
+  result.gb_fan_details = gb_fan_details_;
 
   LOG(INFO) << "Win Analysis for player " << winner_idx_ << " ("
             << result.winner_name << ")";
@@ -69,20 +70,42 @@ bool WinAnalyzer::IsLastCopyTile(int tile) const {
     return false;
   }
 
-  int base     = tile >> 2;
-  int w_idx    = winner_idx_;
-  bool is_self = is_self_drawn_;
+  if (IsRobbingKong(is_self_drawn_)) {
+    return false;
+  }
+
+  int base = tile >> 2;
 
   int exposed_melds = 0;
+  int from_discards = 0;
+
   for (int p_idx = 0; p_idx < 4; ++p_idx) {
-    const auto& packs = state_->GetPlayerPacks(p_idx);
-    for (const auto& pack : packs) {
+    const auto& packs     = state_->GetPlayerPacks(p_idx);
+    const auto& pack_seqs = state_->GetPlayerPackOfferSequences(p_idx);
+
+    for (size_t pack_idx = 0; pack_idx < packs.size(); ++pack_idx) {
+      const auto& pack = packs[pack_idx];
       if (pack.empty())
         continue;
+      int tiles_of_base = 0;
+      int is_anko       = 0;
       for (int tile_in_pack : pack) {
         if ((tile_in_pack >> 2) == base) {
+          tiles_of_base++;
           exposed_melds++;
+          is_anko++;
         }
+      }
+      if (is_anko == 3) {
+        LOG(INFO) << "  Found ankan of tile " << GetTileString(tile)
+                  << " in player " << p_idx << "'s melds.";
+        return true;
+      }
+      int num = pack_seqs[pack_idx];
+      LOG(INFO) << p_idx << ", pack index " << pack_idx << ", seq " << num
+                << ", pack " << GetTileString(pack[num]);
+      if ((pack[num] >> 2) == base) {
+        from_discards += 1;
       }
     }
   }
@@ -97,49 +120,47 @@ bool WinAnalyzer::IsLastCopyTile(int tile) const {
     }
   }
 
-  std::vector<int> hand_pre_win = state_->GetPlayerHand(w_idx);
+  LOG(INFO) << "  Exposed melds of tile " << GetTileString(tile) << ": "
+            << exposed_melds;
+  LOG(INFO) << "  Exposed discards of tile " << GetTileString(tile) << ": "
+            << exposed_discards;
+  LOG(INFO) << "  Tiles in melds from discards: " << from_discards;
 
-  if (is_self) {
-    auto it =
-        std::find_if(hand_pre_win.begin(), hand_pre_win.end(), [base](int t) {
-          return (t >> 2) == base;
-        });
-    if (it != hand_pre_win.end()) {
-      hand_pre_win.erase(it);
-    }
-  } else {
-    auto it =
-        std::find_if(hand_pre_win.begin(), hand_pre_win.end(), [base](int t) {
-          return (t >> 2) == base;
-        });
-    if (it != hand_pre_win.end()) {
-      hand_pre_win.erase(it);
-    }
+  int total_exposed = exposed_melds + exposed_discards;
+  LOG(INFO) << "  Total exposed (adjusted): " << total_exposed;
+
+  int required_count = is_self_drawn_ ? 3 : 4;
+  if (total_exposed > required_count) {
+    LOG(ERROR) << "  Last copy method error: More than " << required_count
+               << " exposed tiles.";
   }
-
-  for (int ht : hand_pre_win) {
-    if ((ht >> 2) == base) {
-      return false;
-    }
-  }
-
-  int exposed_before = is_self ? (exposed_melds + exposed_discards)
-                               : (exposed_melds + exposed_discards - 1);
-  return exposed_before == 3;
+  return total_exposed >= required_count;
 }
 
 bool WinAnalyzer::IsSeaLastTile(bool is_self_drawn) const {
   if (!state_) {
     return false;
   }
-  return state_->GetWallFrontPtr() > state_->GetWallBackPtr();
+  int front = state_->GetWallFrontPtr();
+  int back  = state_->GetWallBackPtr();
+
+  bool is_sea = (front > back);
+
+  LOG(INFO) << "  IsSeaLastTile check: is_self_drawn=" << is_self_drawn
+            << ", wall_front=" << front << ", wall_back=" << back
+            << ", is_sea=" << (is_sea ? "true" : "false");
+
+  return is_sea;
 }
 
 bool WinAnalyzer::IsRobbingKong(bool is_self_drawn) const {
   if (is_self_drawn) {
     return false;
   }
-  return state_->IsLastActionKong();
+  if (!state_) {
+    return false;
+  }
+  return state_->IsLastActionAddKong();
 }
 
 std::string WinAnalyzer::BuildEnvFlag() {
@@ -168,13 +189,12 @@ std::string WinAnalyzer::BuildHandStringForGB() {
   const auto& hand         = state_->GetPlayerHand(w_idx);
   const auto& packs        = state_->GetPlayerPacks(w_idx);
   const auto& pack_dirs    = state_->GetPlayerPackDirections(w_idx);
+  const auto& pack_seqs    = state_->GetPlayerPackOfferSequences(w_idx);
   const auto& flower_tiles = state_->GetPlayerFlowerTiles(w_idx);
 
-  std::vector<int> pack_directions_vec;
-  if (pack_dirs.size() == packs.size()) {
-    pack_directions_vec = pack_dirs;
-  } else {
-    pack_directions_vec.resize(packs.size(), 0);
+  std::vector<int> pack_directions_vec(packs.size(), 0);
+  for (size_t i = 0; i < packs.size(); ++i) {
+    pack_directions_vec[i] = pack_dirs[i];
   }
 
   char round_wind = GetRoundWindChar()[0];
@@ -331,13 +351,17 @@ int WinAnalyzer::CalculateFanWithGB(const std::string& gb_string) {
     int calculated_fan = calculator.GetTotalFan();
     LOG(INFO) << "Calculated fan: " << calculated_fan;
 
+    gb_fan_details_.clear();
     auto fan_details = calculator.GetFanTypesSummary();
     if (!fan_details.empty()) {
-      LOG(INFO) << "Fan type details:";
+      LOG(INFO) << "GB-Mahjong Fan type details:";
       for (const auto& detail : fan_details) {
         LOG(INFO) << "  - " << detail.fan_name << ": " << detail.count
                   << " pattern(s), " << detail.score_per_fan << " fan each, "
                   << "total: " << detail.total_score << " fan";
+
+        gb_fan_details_.push_back(
+            {detail.fan_name, detail.score_per_fan, detail.count});
       }
     }
 

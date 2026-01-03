@@ -3,12 +3,19 @@
 #include "utils/tile.h"
 #include <glog/logging.h>
 #include <sstream>
+#include <utility>
 
 namespace tziakcha {
 namespace analyzer {
 
 RecordSimulator::RecordSimulator()
     : parser_(), state_(), processor_(state_), analyzer_() {}
+
+void RecordSimulator::AddActionObserver(ActionObserver observer) {
+  action_observers_.push_back(std::move(observer));
+}
+
+void RecordSimulator::ClearActionObservers() { action_observers_.clear(); }
 
 SimulationResult RecordSimulator::Simulate(const std::string& record_json_str) {
   SimulationResult result;
@@ -136,7 +143,12 @@ void RecordSimulator::ProcessAllActions() {
     processor_.ProcessAction(action);
     LogAction(step_number, action, time_elapsed_ms, action_desc);
 
+    for (auto& observer : action_observers_) {
+      observer(action, step_number, state_);
+    }
+
     int a_type = action.action_type;
+
     if (a_type == 6) {
       int winner_idx = action.player_idx;
       int fan_count  = action.data >> 1;
@@ -285,6 +297,12 @@ void RecordSimulator::ExtractWinInfoFromScript() {
 
   bool is_self_drawn = (discarder_idx < 0 || discarder_idx == winner_idx);
 
+  bool is_robbing_kong = false;
+  if (!is_self_drawn && state_.IsLastActionAddKong()) {
+    is_robbing_kong = true;
+    LOG(INFO) << "  Detected robbing kong (抢杠和)";
+  }
+
   LOG(INFO) << "Extracting win info from script data:";
   LOG(INFO) << "  Winner: " << game_log_.player_names[winner_idx] << " ("
             << base::WIND[winner_idx] << ")";
@@ -293,7 +311,11 @@ void RecordSimulator::ExtractWinInfoFromScript() {
   auto win_data = script_data["y"][winner_idx];
   if (win_data.contains("h")) {
     int win_tile = -1;
-    if (is_self_drawn) {
+
+    if (is_robbing_kong) {
+      win_tile = state_.GetLastDiscardTile();
+      LOG(INFO) << "  Robbing kong: win tile is the kong tile";
+    } else if (is_self_drawn) {
       win_tile = state_.GetLastDrawTile(winner_idx);
     } else {
       win_tile = state_.GetLastDiscardTile();
@@ -467,13 +489,21 @@ RecordSimulator::GetPlayerHandStrings(int player_idx) const {
 std::vector<std::string>
 RecordSimulator::GetPlayerPackStrings(int player_idx) const {
   std::vector<std::string> result;
-  const auto& packs = state_.GetPlayerPacks(player_idx);
-  for (const auto& pack : packs) {
+  const auto& packs     = state_.GetPlayerPacks(player_idx);
+  const auto& pack_seqs = state_.GetPlayerPackOfferSequences(player_idx);
+
+  for (size_t pack_idx = 0; pack_idx < packs.size(); ++pack_idx) {
+    const auto& pack = packs[pack_idx];
     std::ostringstream pack_str;
     pack_str << "[";
     for (size_t i = 0; i < pack.size(); ++i) {
       pack_str << utils::Tile::ToString(pack[i]);
     }
+
+    if (pack_idx < pack_seqs.size() && pack_seqs[pack_idx] > 0) {
+      pack_str << "," << pack_seqs[pack_idx];
+    }
+
     pack_str << "]";
     result.push_back(pack_str.str());
   }
@@ -494,6 +524,15 @@ const GameLog& RecordSimulator::GetGameLog() const { return game_log_; }
 
 const std::vector<StepLog>& RecordSimulator::GetStepLogs() const {
   return step_logs_;
+}
+
+int RecordSimulator::GetRoundWindIndex() const {
+  const auto& script_data = parser_.GetScriptData();
+  if (!script_data.contains("i")) {
+    return 0;
+  }
+  int i = script_data["i"].get<int>();
+  return (i / 4) % 4;
 }
 
 } // namespace analyzer

@@ -27,6 +27,12 @@ void ActionProcessor::ProcessAction(const Action& action) {
     RemoveTileFromHand(p_idx, ot);
     state_.GetPlayerHand(p_idx).push_back(lo_byte);
     state_.SetLastDrawTile(p_idx, lo_byte);
+
+    state_.AdvanceWallBackPtr(-1);
+
+    LOG(INFO) << "  Player " << p_idx
+              << " replaced flower, wall_front=" << state_.GetWallFrontPtr()
+              << ", wall_back=" << state_.GetWallBackPtr();
     break;
   }
   case 2: {
@@ -39,6 +45,7 @@ void ActionProcessor::ProcessAction(const Action& action) {
     state_.GetPlayerDiscards(p_idx).push_back(tile);
     state_.SetLastDiscard(p_idx, tile);
     state_.SetLastActionKong(false);
+    state_.SetLastActionAddKong(false);
 
     LOG(INFO) << "  Player " << p_idx
               << " discarded: " << utils::Tile::ToString(tile)
@@ -83,9 +90,17 @@ void ActionProcessor::ProcessAction(const Action& action) {
     state_.GetPlayerHand(p_idx).push_back(tile_to_draw);
     state_.SetLastDrawTile(p_idx, tile_to_draw);
 
+    if (is_backward_draw) {
+      state_.AdvanceWallBackPtr(-1);
+    } else {
+      state_.AdvanceWallFrontPtr(1);
+    }
+
     LOG(INFO) << "  Player " << p_idx
               << " drew: " << utils::Tile::ToString(tile_to_draw)
-              << (is_backward_draw ? " (from back)" : " (from front)");
+              << (is_backward_draw ? " (from back)" : " (from front)")
+              << ", wall_front=" << state_.GetWallFrontPtr()
+              << ", wall_back=" << state_.GetWallBackPtr();
     break;
   }
   case 8: {
@@ -152,7 +167,7 @@ bool ActionProcessor::ProcessChiAction(int player_idx, int data) {
     return false;
   }
 
-  int offer_from_idx = (player_idx + offer_direction) % 4;
+  int offer_from_idx = (player_idx + 3) % 4;
   int offer_tile     = state_.GetLastDiscardTile();
 
   if (tile_val - 4 + ((data >> 10) & 3) < 0) {
@@ -165,6 +180,21 @@ bool ActionProcessor::ProcessChiAction(int player_idx, int data) {
 
   std::vector<int> chi_tiles = {c1, c2, c3};
 
+  int offer_position = -1;
+  for (int i = 0; i < 3; ++i) {
+    if ((chi_tiles[i] >> 2) == (offer_tile >> 2)) {
+      offer_position = i;
+      break;
+    }
+  }
+
+  LOG(INFO) << "  Processing CHI for player " << player_idx << ": tiles "
+            << utils::Tile::ToString(c1) << " " << utils::Tile::ToString(c2)
+            << " " << utils::Tile::ToString(c3)
+            << ", offer_tile: " << utils::Tile::ToString(offer_tile)
+            << ", offer_position: " << offer_position
+            << ", from player: " << offer_from_idx;
+
   for (int t = 0; t < 3; ++t) {
     if ((chi_tiles[t] >> 2) != (offer_tile >> 2)) {
       RemoveNTilesFromHand(player_idx, chi_tiles[t] >> 2, 1);
@@ -173,6 +203,7 @@ bool ActionProcessor::ProcessChiAction(int player_idx, int data) {
 
   state_.GetPlayerPacks(player_idx).push_back(chi_tiles);
   state_.GetPlayerPackDirections(player_idx).push_back(offer_direction);
+  state_.GetPlayerPackOfferSequences(player_idx).push_back(offer_position);
 
   LOG(INFO) << "  Added CHI pack for player " << player_idx << ": "
             << utils::Tile::ToString(c1) << " " << utils::Tile::ToString(c2)
@@ -197,7 +228,7 @@ bool ActionProcessor::ProcessPengAction(
     int player_idx, int base_tile, int offer_direction) {
   state_.SetCurrentPlayerIdx(player_idx);
 
-  int offer_from_idx = (player_idx + offer_direction) % 4;
+  int offer_from_idx = (player_idx - offer_direction + 4) % 4;
   int offer_tile     = state_.GetLastDiscardTile();
 
   RemoveNTilesFromHand(player_idx, base_tile >> 2, 2);
@@ -205,6 +236,8 @@ bool ActionProcessor::ProcessPengAction(
   std::vector<int> peng_tiles = {base_tile, base_tile, base_tile};
   state_.GetPlayerPacks(player_idx).push_back(peng_tiles);
   state_.GetPlayerPackDirections(player_idx).push_back(offer_direction);
+
+  state_.GetPlayerPackOfferSequences(player_idx).push_back(offer_direction + 1);
 
   LOG(INFO) << "  Added PENG pack for player " << player_idx << ": "
             << utils::Tile::ToString(base_tile) << " x3"
@@ -233,6 +266,8 @@ bool ActionProcessor::ProcessGangAction(
   bool is_add_kong    = (data & 0x0300) == 0x0300;
   bool is_concealed   = offer_direction == 0;
 
+  state_.SetLastActionAddKong(is_add_kong);
+
   LOG(INFO) << "  Processing GANG: base_tile="
             << utils::Tile::ToString(base_tile) << ", is_add_kong="
             << is_add_kong << ", is_concealed=" << is_concealed;
@@ -251,7 +286,12 @@ bool ActionProcessor::ProcessGangAction(
         packs[i].push_back(base_tile);
 
         if (i < pack_dirs.size()) {
-          pack_dirs[i] = 5 + pack_dirs[i];
+          pack_dirs[i] = 4 + pack_dirs[i];
+        }
+
+        auto& pack_seqs = state_.GetPlayerPackOfferSequences(player_idx);
+        if (i < pack_seqs.size() && pack_seqs[i] >= 1 && pack_seqs[i] <= 3) {
+          pack_seqs[i] += 4;
         }
         LOG(INFO) << "  Upgraded PENG to GANG for player " << player_idx << ": "
                   << utils::Tile::ToString(base_tile) << " x4 (add kong)";
@@ -267,6 +307,8 @@ bool ActionProcessor::ProcessGangAction(
     state_.GetPlayerPacks(player_idx).push_back(gang_tiles);
     state_.GetPlayerPackDirections(player_idx).push_back(0);
 
+    state_.GetPlayerPackOfferSequences(player_idx).push_back(0);
+
     LOG(INFO) << "  Added concealed GANG for player " << player_idx << ": "
               << utils::Tile::ToString(base_tile) << " x4 (concealed)";
 
@@ -275,7 +317,10 @@ bool ActionProcessor::ProcessGangAction(
     state_.GetPlayerPacks(player_idx).push_back(gang_tiles);
     state_.GetPlayerPackDirections(player_idx).push_back(offer_direction);
 
-    int offer_from_idx = (player_idx + offer_direction) % 4;
+    state_.GetPlayerPackOfferSequences(player_idx)
+        .push_back(offer_direction + 1);
+
+    int offer_from_idx = (player_idx - offer_direction + 4) % 4;
     try {
       if (!state_.GetPlayerDiscards(offer_from_idx).empty()) {
         state_.GetPlayerDiscards(offer_from_idx).pop_back();
@@ -296,7 +341,6 @@ bool ActionProcessor::ProcessGangAction(
 
 bool ActionProcessor::ProcessWin(int player_idx, const json& win_data) {
   state_.SetCurrentPlayerIdx(player_idx);
-  state_.SetLastActionKong(false);
 
   int fan_count = 0;
   bool is_auto  = false;
@@ -325,7 +369,7 @@ bool ActionProcessor::ProcessPass(int player_idx) {
 }
 
 bool ActionProcessor::ProcessAbandonment(int player_idx) {
-  LOG(WARNING) << "  Player " << player_idx << " abandoned (win invalid - 弃)";
+  LOG(INFO) << "  Player " << player_idx << " abandoned (win invalid - 弃)";
   return true;
 }
 

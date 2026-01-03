@@ -5,6 +5,7 @@
 #include "analyzer/game_state.h"
 #include "analyzer/record_parser.h"
 #include "analyzer/win_analyzer.h"
+#include <functional>
 #include <nlohmann/json.hpp>
 #include <string>
 #include <vector>
@@ -27,8 +28,17 @@ public:
 
   SimulationResult Simulate(const std::string& record_json_str);
 
+  using ActionObserver =
+      std::function<void(const Action&, int step_number, const GameState&)>;
+
+  void AddActionObserver(ActionObserver observer);
+
+  void ClearActionObservers();
+
   const GameLog& GetGameLog() const;
   const std::vector<StepLog>& GetStepLogs() const;
+
+  int GetRoundWindIndex() const;
 
 private:
   RecordParser parser_;
@@ -38,6 +48,8 @@ private:
   GameLog game_log_;
   std::vector<StepLog> step_logs_;
   bool winner_set_from_actions_ = false;
+
+  std::vector<ActionObserver> action_observers_;
 
   void ProcessGameInfoAndSetup();
   void ProcessAllActions();

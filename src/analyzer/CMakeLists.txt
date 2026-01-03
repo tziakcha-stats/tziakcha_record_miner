@@ -5,6 +5,7 @@ add_library(analyzer
     win_analyzer.cpp
     simulator.cpp
     core.cpp
+    ../stats/intercept_stats.cpp
 )
 
 target_include_directories(analyzer PUBLIC
@@ -20,6 +21,17 @@ target_link_libraries(analyzer PUBLIC
 add_executable(analyzer_cli analyzer_cli.cpp)
 
 target_link_libraries(analyzer_cli PRIVATE
+    analyzer
+    utils
+    glog::glog
+    cxxopts::cxxopts
+)
+
+add_executable(stats_cli
+    ../stats/stats_cli.cpp
+)
+
+target_link_libraries(stats_cli PRIVATE
     analyzer
     utils
     glog::glog

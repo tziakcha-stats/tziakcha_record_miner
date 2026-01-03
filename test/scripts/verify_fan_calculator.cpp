@@ -1,5 +1,6 @@
 #include "analyzer/core.h"
 #include "analyzer/record_parser.h"
+#include "base/mahjong_constants.h"
 #include <nlohmann/json.hpp>
 #include <glog/logging.h>
 #include <fstream>
@@ -22,6 +23,16 @@ struct TestResult {
   std::string winner_name;
   std::string error_message;
   bool is_draw;
+
+  struct FanInfo {
+    std::string fan_name;
+    int fan_points;
+    int count;
+  };
+  std::vector<FanInfo> gb_fan_details;
+
+  std::vector<FanInfo> tziakcha_fan_details;
+  int tziakcha_total_fan = -1;
 
   bool IsMatch() const {
     return success && !is_draw && (expected_fan == calculated_fan);
@@ -84,14 +95,34 @@ private:
       if (result.IsDraw()) {
         std::cout << "○ DRAW (荒庄)\n";
       } else if (result.IsMatch()) {
-        std::cout << "✓ PASS (GB-Mahjong Fan: " << result.calculated_fan
-                  << ", tziakcha Fan: " << result.expected_fan << ")\n";
+        std::cout << "✓ PASS\n";
+        PrintFanComparison(result);
       } else if (result.success) {
-        std::cout << "✗ MISMATCH (GB-Mahjong Fan: " << result.calculated_fan
-                  << ", tziakcha Fan: " << result.expected_fan << ")\n";
+        std::cout << "✗ MISMATCH\n";
+        PrintFanComparison(result);
       } else {
         std::cout << "✗ ERROR: " << result.error_message << "\n";
       }
+    }
+  }
+
+  void PrintFanComparison(const TestResult& result) {
+    std::cout << "    Winner: " << result.winner_name << "\n";
+    std::cout << "    GB-Mahjong (" << result.calculated_fan << " fans):\n";
+    for (const auto& fan : result.gb_fan_details) {
+      std::cout << "      - " << fan.fan_name << ": " << fan.fan_points
+                << "pt × " << fan.count << " = " << (fan.fan_points * fan.count)
+                << "\n";
+    }
+    std::cout << "    tziakcha (" << result.expected_fan << " fans):\n";
+    for (const auto& fan : result.tziakcha_fan_details) {
+      std::cout << "      - " << fan.fan_name << ": " << fan.fan_points
+                << "pt × " << fan.count << " = " << (fan.fan_points * fan.count)
+                << "\n";
+    }
+    if (result.calculated_fan != result.expected_fan) {
+      std::cout << "    Difference: "
+                << (result.calculated_fan - result.expected_fan) << " fans\n";
     }
   }
 
@@ -157,20 +188,14 @@ private:
         result.winner_name    = analysis_result.win_analysis.winner_name;
         result.success        = true;
 
-        std::ostringstream gb_fans, tziakcha_fans;
-
-        gb_fans << "GB-Mahjong fans: [";
-        bool first = true;
-        for (const auto& detail : analysis_result.win_analysis.fan_details) {
-          if (!first)
-            gb_fans << ", ";
-          gb_fans << detail.fan_name << "(" << detail.fan_points << "×"
-                  << detail.count << ")";
-          first = false;
+        result.gb_fan_details.clear();
+        for (const auto& detail : analysis_result.win_analysis.gb_fan_details) {
+          result.gb_fan_details.push_back(
+              {detail.fan_name, detail.fan_points, detail.count});
         }
-        gb_fans << "]";
 
-        tziakcha_fans << "tziakcha fans: [";
+        result.tziakcha_fan_details.clear();
+        int tziakcha_total = 0;
         if (script_data.contains("y") && script_data["y"].is_array()) {
           int winner_idx = -1;
           int win_flags  = script_data["b"].get<int>();
@@ -185,26 +210,58 @@ private:
               winner_idx < static_cast<int>(script_data["y"].size())) {
             auto win_info = script_data["y"][winner_idx];
             if (win_info.contains("t") && win_info["t"].is_object()) {
-              first = true;
               for (auto& [fan_id_str, fan_val] : win_info["t"].items()) {
-                if (!first)
-                  tziakcha_fans << ", ";
                 int fan_id = std::stoi(fan_id_str);
                 if (fan_id == 83)
                   continue;
                 int fan_points = fan_val.get<int>() & 0xFF;
                 int count      = ((fan_val.get<int>() >> 8) & 0xFF) + 1;
-                tziakcha_fans << "Fan" << fan_id << "(" << fan_points << "×"
-                              << count << ")";
-                first = false;
+
+                std::string tziakcha_fan_name;
+                if (fan_id >= 0 &&
+                    fan_id <
+                        static_cast<int>(tziakcha::base::FAN_NAMES.size())) {
+                  tziakcha_fan_name = tziakcha::base::FAN_NAMES[fan_id];
+                } else {
+                  tziakcha_fan_name = "Fan" + std::to_string(fan_id);
+                }
+
+                result.tziakcha_fan_details.push_back(
+                    {tziakcha_fan_name, fan_points, count});
+                tziakcha_total += fan_points * count;
               }
             }
           }
         }
-        tziakcha_fans << "]";
+        result.tziakcha_total_fan = tziakcha_total;
+        result.tziakcha_total_fan = tziakcha_total;
 
-        LOG(INFO) << record_id << ": " << gb_fans.str() << " | "
-                  << tziakcha_fans.str();
+        std::ostringstream gb_log, tziakcha_log;
+        gb_log << "[";
+        bool first = true;
+        for (const auto& fan : result.gb_fan_details) {
+          if (!first)
+            gb_log << ", ";
+          gb_log << fan.fan_name << "(" << fan.fan_points << "×" << fan.count
+                 << ")";
+          first = false;
+        }
+        gb_log << "]";
+
+        tziakcha_log << "[";
+        first = true;
+        for (const auto& fan : result.tziakcha_fan_details) {
+          if (!first)
+            tziakcha_log << ", ";
+          tziakcha_log << fan.fan_name << "(" << fan.fan_points << "×"
+                       << fan.count << ")";
+          first = false;
+        }
+        tziakcha_log << "]";
+
+        LOG(INFO) << record_id << ": GB=" << gb_log.str()
+                  << " (Total: " << result.calculated_fan << ") | tziakcha="
+                  << tziakcha_log.str() << " (Total: " << tziakcha_total << ")";
 
       } catch (const std::exception& e) {
         result.error_message = std::string("Analyzer exception: ") + e.what();
@@ -361,13 +418,26 @@ private:
     }
 
     report << "\n=== MISMATCHED RECORDS ===\n";
-    report << "RecordID\tExpected\tCalculated\tDifference\tWinner\n";
     for (const auto& result : results_) {
       if (!result.IsMatch() && result.success) {
-        report << result.record_id << "\t" << result.expected_fan << "\t"
-               << result.calculated_fan << "\t"
-               << (result.calculated_fan - result.expected_fan) << "\t"
-               << result.winner_name << "\n";
+        report << result.record_id << "\t" << result.winner_name << "\n";
+        report << "  Expected: " << result.expected_fan << " fans\n";
+        report << "  Calculated: " << result.calculated_fan << " fans\n";
+        report << "  Difference: "
+               << (result.calculated_fan - result.expected_fan) << " fans\n";
+        report << "  GB-Mahjong details:\n";
+        for (const auto& fan : result.gb_fan_details) {
+          report << "    - " << fan.fan_name << ": " << fan.fan_points
+                 << "pt × " << fan.count << " = "
+                 << (fan.fan_points * fan.count) << "\n";
+        }
+        report << "  tziakcha details:\n";
+        for (const auto& fan : result.tziakcha_fan_details) {
+          report << "    - " << fan.fan_name << ": " << fan.fan_points
+                 << "pt × " << fan.count << " = "
+                 << (fan.fan_points * fan.count) << "\n";
+        }
+        report << "\n";
       }
     }
 

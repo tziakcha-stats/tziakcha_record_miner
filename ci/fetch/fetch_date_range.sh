@@ -102,8 +102,9 @@ if [[ ! -d "${data_dir}" ]]; then
   mkdir -p "${data_dir}"
 fi
 
-date_range_key="${start_date}"
-if [[ "${start_date}" != "${end_date}" ]]; then
+if [[ "${start_date}" == "${end_date}" ]]; then
+  date_range_key="${start_date}"
+else
   date_range_key="${start_date}_${end_date}"
 fi
 
@@ -127,6 +128,11 @@ fi
 
 log_info ""
 log_info "Step 2/3: Extracting sessions..."
+if [[ ! -f "${data_dir}/${history_file}" ]]; then
+  log_error "History file not found: ${data_dir}/${history_file}"
+  exit 1
+fi
+
 if "${fetcher_cli}" sessions -i "${history_file}" -o "session/history_${date_range_key}" --data-dir "${data_dir}"; then
   log_info "✓ Sessions saved to: ${data_dir}/${session_file}"
 else

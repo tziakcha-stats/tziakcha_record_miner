@@ -96,7 +96,11 @@ int cmd_history(int argc, char* argv[]) {
     }
 
     if (storage_key == "history/history") {
-      storage_key += "_" + start_date + "_" + end_date;
+      if (start_date == end_date) {
+        storage_key += "_" + start_date;
+      } else {
+        storage_key += "_" + start_date + "_" + end_date;
+      }
     }
   }
 

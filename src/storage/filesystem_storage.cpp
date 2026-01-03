@@ -76,7 +76,7 @@ bool FileSystemStorage::save_json(const std::string& key, const json& data) {
     return false;
   }
 
-  file << data.dump(2);
+  file << data.dump();
   file.close();
 
   LOG(INFO) << "Saved JSON to: " << path;

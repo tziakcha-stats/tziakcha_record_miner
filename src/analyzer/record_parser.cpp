@@ -13,7 +13,10 @@ bool RecordParser::Parse(const std::string& record_json_str) {
   try {
     json record_json = json::parse(record_json_str);
 
-    if (!DecodeAndParseScript(record_json_str)) {
+    if (record_json.contains("step") && record_json["step"].is_object()) {
+      script_data_ = record_json["step"];
+      LOG(INFO) << "Using pre-decoded step field";
+    } else if (!DecodeAndParseScript(record_json_str)) {
       LOG(ERROR) << "Failed to decode and parse script";
       return false;
     }
@@ -52,12 +55,23 @@ bool RecordParser::Parse(const std::string& record_json_str) {
 bool RecordParser::DecodeAndParseScript(const std::string& record_json_str) {
   try {
     json record_json = json::parse(record_json_str);
+
+    if (record_json.contains("step") && record_json["step"].is_object()) {
+      script_data_ = record_json["step"];
+      return true;
+    }
+
     if (!record_json.contains("script")) {
       LOG(ERROR) << "Script field not found in record";
       return false;
     }
 
     std::string script_encoded = record_json["script"];
+    if (script_encoded == "<Decoded>") {
+      LOG(ERROR) << "Script marked as decoded but step field missing";
+      return false;
+    }
+
     if (!utils::DecodeScriptToJson(script_encoded, script_data_)) {
       LOG(ERROR) << "Failed to decode script";
       return false;

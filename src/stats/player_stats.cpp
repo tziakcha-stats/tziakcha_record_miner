@@ -489,7 +489,9 @@ bool RunPlayerStats(const PlayerStatsOptions& options) {
     }
     auto record_json = ParseJson(content, it->path());
     json script_json;
-    if (!DecodeScript(record_json, script_json)) {
+    if (record_json.contains("step") && record_json["step"].is_object()) {
+      script_json = record_json["step"];
+    } else if (!DecodeScript(record_json, script_json)) {
       LOG(WARNING) << "Failed to decode script for " << it->path();
       continue;
     }

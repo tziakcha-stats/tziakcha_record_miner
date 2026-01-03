@@ -79,12 +79,18 @@ bool RecordFetcher::fetch_record(const std::string& record_id,
     }
 
     if (record_data.contains("script") && record_data["script"].is_string()) {
-      json script_json;
-      if (utils::DecodeScriptToJson(record_data["script"], script_json)) {
-        record_data["step"] = script_json;
-        LOG(INFO) << "Parsed script and added step field";
+      std::string script_str = record_data["script"];
+      if (script_str == "<Decoded>") {
+        LOG(INFO) << "Script already decoded, skipping";
       } else {
-        LOG(WARNING) << "Script parsing failed; step not added";
+        json script_json;
+        if (utils::DecodeScriptToJson(script_str, script_json)) {
+          record_data["step"]   = script_json;
+          record_data["script"] = "<Decoded>";
+          LOG(INFO) << "Parsed script and added step field";
+        } else {
+          LOG(WARNING) << "Script parsing failed; step not added";
+        }
       }
     } else {
       LOG(WARNING) << "Record JSON missing script field";

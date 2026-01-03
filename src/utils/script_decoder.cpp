@@ -9,6 +9,10 @@ namespace tziakcha {
 namespace utils {
 
 bool DecodeScriptToJson(const std::string& encoded, json& out) {
+  if (encoded == "<Decoded>") {
+    return false;
+  }
+
   try {
     std::string decoded = base64_decode(encoded, true);
     if (decoded.empty()) {

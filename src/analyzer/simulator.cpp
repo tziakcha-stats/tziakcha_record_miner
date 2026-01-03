@@ -24,6 +24,23 @@ SimulationResult RecordSimulator::Simulate(const std::string& record_json_str) {
   try {
     LOG(INFO) << "=== Starting record simulation ===";
 
+    json record_json;
+    try {
+      record_json = json::parse(record_json_str);
+    } catch (const std::exception& e) {
+      result.error_message = std::string("Failed to parse JSON: ") + e.what();
+      LOG(ERROR) << result.error_message;
+      return result;
+    }
+
+    if (record_json.contains("script") && record_json["script"].is_string() &&
+        record_json["script"].get<std::string>() == "<Decoded>" &&
+        !record_json.contains("step")) {
+      result.error_message = "Script already decoded but step field missing";
+      LOG(ERROR) << result.error_message;
+      return result;
+    }
+
     if (!parser_.Parse(record_json_str)) {
       result.error_message = "Failed to parse record";
       LOG(ERROR) << result.error_message;

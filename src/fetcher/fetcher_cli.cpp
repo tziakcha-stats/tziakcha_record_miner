@@ -42,6 +42,12 @@ int cmd_history(int argc, char* argv[]) {
       "k,key",
       "Storage key for history",
       cxxopts::value<std::string>()->default_value("history/history"))(
+      "start-date",
+      "Start date (YYYYMMDD)",
+      cxxopts::value<std::string>()->default_value(""))(
+      "end-date",
+      "End date (YYYYMMDD)",
+      cxxopts::value<std::string>()->default_value(""))(
       "f,filter", "Filter by title keyword", cxxopts::value<std::string>())(
       "p,print",
       "Print JSON to console after fetching",
@@ -79,13 +85,27 @@ int cmd_history(int argc, char* argv[]) {
 
   std::string data_dir    = result["data-dir"].as<std::string>();
   std::string storage_key = result["key"].as<std::string>();
+  std::string start_date  = result["start-date"].as<std::string>();
+  std::string end_date    = result["end-date"].as<std::string>();
+
+  if (!start_date.empty() || !end_date.empty()) {
+    if (start_date.empty() || end_date.empty()) {
+      std::cerr << "Error: both --start-date and --end-date are required"
+                << std::endl;
+      return 1;
+    }
+
+    if (storage_key == "history/history") {
+      storage_key += "_" + start_date + "_" + end_date;
+    }
+  }
 
   auto storage =
       std::make_shared<tziakcha::storage::FileSystemStorage>(data_dir);
 
   tziakcha::fetcher::HistoryFetcher fetcher(storage);
 
-  if (!fetcher.fetch(cookie, storage_key)) {
+  if (!fetcher.fetch(cookie, storage_key, start_date, end_date)) {
     LOG(ERROR) << "Failed to fetch history records";
     return 1;
   }

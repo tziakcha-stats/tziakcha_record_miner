@@ -184,7 +184,7 @@ private:
           return result;
         }
 
-        result.calculated_fan = analysis_result.win_analysis.total_fan;
+        result.calculated_fan = analysis_result.win_analysis.calculated_fan;
         result.winner_name    = analysis_result.win_analysis.winner_name;
         result.success        = true;
 
@@ -318,12 +318,20 @@ private:
 
     auto win_info = script_data["y"][winner_idx];
 
-    if (!win_info.contains("f")) {
-      result.error_message = "No 'f' field (fan count) in win info";
-      return false;
+    int base_fan = 0;
+    if (win_info.contains("t") && win_info["t"].is_object()) {
+      for (auto& [fan_id_str, fan_val] : win_info["t"].items()) {
+        int fan_id = std::stoi(fan_id_str);
+        if (fan_id == 83) {
+          continue;
+        }
+        int fan_points = fan_val.get<int>() & 0xFF;
+        int count      = ((fan_val.get<int>() >> 8) & 0xFF) + 1;
+        base_fan += fan_points * count;
+      }
     }
 
-    result.expected_fan = win_info["f"].get<int>();
+    result.expected_fan = base_fan;
 
     return true;
   }

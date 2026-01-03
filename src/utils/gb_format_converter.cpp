@@ -131,8 +131,13 @@ std::string GBFormatConverter::ConvertPackToGB(
     }
   }
 
-  if (offer_direction > 0 && offer_direction != 4) {
-    oss << "," << offer_direction;
+  int dir = offer_direction;
+  if (dir == 4 || dir < 0 || dir > 7) {
+    dir = 0;
+  }
+
+  if (dir > 0) {
+    oss << "," << dir;
   }
 
   oss << "]";

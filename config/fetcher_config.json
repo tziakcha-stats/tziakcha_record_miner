@@ -22,7 +22,7 @@
         "user_agent": ""
     },
     "fetcher": {
-        "max_pages": 1,
+        "max_pages": 2200,
         "output_file": "record_lists.json"
     }
 }

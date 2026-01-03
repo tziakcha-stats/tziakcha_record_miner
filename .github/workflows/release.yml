@@ -1,0 +1,113 @@
+name: Release builds
+
+on:
+  push:
+    tags: [ "v*" ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: Build ${{ matrix.artifact_suffix }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            artifact_suffix: linux-x86_64
+            openssl_root: /usr
+            zlib_root: ""
+            ext: ""
+          - os: macos-latest
+            artifact_suffix: macos-arm64
+            openssl_root: /opt/homebrew/opt/openssl@3
+            zlib_root: ""
+            ext: ""
+          - os: windows-latest
+            artifact_suffix: windows-x86_64
+            openssl_root: "C:/Program Files/OpenSSL-Win64"
+            zlib_root: "C:/ProgramData/chocolatey/lib/zlib/tools/zlib"
+            ext: ".exe"
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install dependencies (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential cmake ninja-build libssl-dev zlib1g-dev
+
+      - name: Install dependencies (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          brew update
+          brew install cmake ninja openssl@3 zlib
+
+      - name: Install dependencies (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          choco install ninja -y
+          choco install openssl.light -y
+          choco install zlib -y
+          echo "OPENSSL_ROOT_DIR=C:\\Program Files\\OpenSSL-Win64" >> $env:GITHUB_ENV
+          echo "ZLIB_ROOT=C:\\ProgramData\\chocolatey\\lib\\zlib\\tools\\zlib" >> $env:GITHUB_ENV
+
+      - name: Configure CMake
+        shell: bash
+        env:
+          OPENSSL_ROOT_DIR: ${{ matrix.openssl_root }}
+          ZLIB_ROOT: ${{ matrix.zlib_root }}
+        run: |
+          cmake -B build -S . -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DOPENSSL_ROOT_DIR="${OPENSSL_ROOT_DIR}" \
+            -DZLIB_ROOT="${ZLIB_ROOT}"
+
+      - name: Build
+        shell: bash
+        run: cmake --build build --config Release
+
+      - name: Package binaries
+        shell: bash
+        env:
+          EXT: ${{ matrix.ext }}
+        run: |
+          mkdir -p artifacts/${{ matrix.artifact_suffix }}
+          cp build/src/fetcher/fetcher_cli${EXT} artifacts/${{ matrix.artifact_suffix }}/
+          cp build/src/analyzer/analyzer_cli${EXT} artifacts/${{ matrix.artifact_suffix }}/
+          cp build/src/calc/calc_cli${EXT} artifacts/${{ matrix.artifact_suffix }}/
+          cp build/src/analyzer/stats_cli${EXT} artifacts/${{ matrix.artifact_suffix }}/
+          tar -czf release-${{ matrix.artifact_suffix }}.tar.gz -C artifacts/${{ matrix.artifact_suffix }} .
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-${{ matrix.artifact_suffix }}
+          path: release-${{ matrix.artifact_suffix }}.tar.gz
+
+  publish:
+    name: Publish release
+    needs: build
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/')
+    permissions:
+      contents: write
+
+    steps:
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: release-*
+          merge-multiple: true
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: release-*.tar.gz
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

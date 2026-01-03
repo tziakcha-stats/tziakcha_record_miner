@@ -29,10 +29,12 @@ target_link_libraries(analyzer_cli PRIVATE
 
 add_executable(stats_cli
     ../stats/stats_cli.cpp
+    ../stats/player_stats.cpp
 )
 
 target_link_libraries(stats_cli PRIVATE
     analyzer
+    storage
     utils
     glog::glog
     cxxopts::cxxopts

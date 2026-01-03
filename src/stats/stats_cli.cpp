@@ -8,6 +8,7 @@
 
 #include "analyzer/simulator.h"
 #include "stats/intercept_stats.h"
+#include "stats/player_stats.h"
 
 namespace fs = std::filesystem;
 
@@ -41,6 +42,16 @@ int main(int argc, char* argv[]) {
       "v,verbose",
       "Enable verbose logging",
       cxxopts::value<bool>()->default_value("false"))(
+      "player-stats",
+      "Run player statistics aggregation",
+      cxxopts::value<bool>()->default_value("false"))(
+      "player-dir",
+      "Output directory for player stats",
+      cxxopts::value<std::string>()->default_value("data/player"))(
+      "session-map",
+      "Optional session map file (currently unused, reserved for future)",
+      cxxopts::value<std::string>()->default_value(
+          "data/sessions/all_record.json"))(
       "list-events",
       "Print intercept events",
       cxxopts::value<bool>()->default_value("false"))("h,help", "Show help");
@@ -65,10 +76,30 @@ int main(int argc, char* argv[]) {
   fs::path dir     = result["dir"].as<std::string>();
   int limit        = result["limit"].as<int>();
   bool list_events = result["list-events"].as<bool>();
+  bool player_mode = result["player-stats"].as<bool>();
 
   if (!fs::exists(dir) || !fs::is_directory(dir)) {
     std::cerr << "Record directory not found: " << dir << std::endl;
     return 1;
+  }
+
+  if (player_mode) {
+    tziakcha::stats::PlayerStatsOptions ps_opts;
+    ps_opts.record_dir       = dir.string();
+    ps_opts.output_dir       = result["player-dir"].as<std::string>();
+    ps_opts.session_map_path = result["session-map"].as<std::string>();
+    ps_opts.limit            = limit;
+    ps_opts.verbose          = verbose;
+
+    bool ok = tziakcha::stats::RunPlayerStats(ps_opts);
+    if (!ok) {
+      std::cerr << "Player stats run failed" << std::endl;
+      return 1;
+    }
+
+    std::cout << "Player stats written under: " << ps_opts.output_dir
+              << std::endl;
+    return 0;
   }
 
   tziakcha::analyzer::RecordSimulator simulator;

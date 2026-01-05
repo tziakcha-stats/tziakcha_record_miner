@@ -25,8 +25,8 @@ jobs:
             ext: ""
           - os: windows-latest
             artifact_suffix: windows-x86_64
-            openssl_root: "C:/Program Files/OpenSSL-Win64"
-            zlib_root: "C:/ProgramData/chocolatey/lib/zlib/tools/zlib"
+            openssl_root: "C:/Program Files/OpenSSL"
+            zlib_root: ""
             ext: ".exe"
 
     steps:
@@ -53,20 +53,28 @@ jobs:
         run: |
           choco install ninja -y
           choco install openssl.light -y
-          choco install zlib.portable -y
-          echo "OPENSSL_ROOT_DIR=C:\\Program Files\\OpenSSL-Win64" >> $env:GITHUB_ENV
-          echo "ZLIB_ROOT=C:\\ProgramData\\chocolatey\\lib\\zlib\\tools\\zlib" >> $env:GITHUB_ENV
+          git clone https://github.com/microsoft/vcpkg.git $env:RUNNER_TEMP/vcpkg
+          & $env:RUNNER_TEMP/vcpkg/bootstrap-vcpkg.bat
+          $env:RUNNER_TEMP/vcpkg/vcpkg.exe install zlib --triplet x64-windows
+          echo "OPENSSL_ROOT_DIR=C:\\Program Files\\OpenSSL" >> $env:GITHUB_ENV
+          echo "CMAKE_TOOLCHAIN_FILE=$env:RUNNER_TEMP/vcpkg/scripts/buildsystems/vcpkg.cmake" >> $env:GITHUB_ENV
 
       - name: Configure CMake
         shell: bash
         env:
           OPENSSL_ROOT_DIR: ${{ matrix.openssl_root }}
           ZLIB_ROOT: ${{ matrix.zlib_root }}
+          CMAKE_TOOLCHAIN_FILE: ${{ env.CMAKE_TOOLCHAIN_FILE }}
         run: |
+          EXTRA_ARGS=""
+          if [ -n "$CMAKE_TOOLCHAIN_FILE" ]; then
+            EXTRA_ARGS="-DCMAKE_TOOLCHAIN_FILE=$CMAKE_TOOLCHAIN_FILE"
+          fi
           cmake -B build -S . -G Ninja \
             -DCMAKE_BUILD_TYPE=Release \
             -DOPENSSL_ROOT_DIR="${OPENSSL_ROOT_DIR}" \
-            -DZLIB_ROOT="${ZLIB_ROOT}"
+            -DZLIB_ROOT="${ZLIB_ROOT}" \
+            $EXTRA_ARGS
 
       - name: Build
         shell: bash

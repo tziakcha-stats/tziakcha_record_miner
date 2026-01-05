@@ -53,11 +53,11 @@ jobs:
         run: |
           choco install ninja -y
           choco install openssl.light -y
-          git clone https://github.com/microsoft/vcpkg.git $env:RUNNER_TEMP/vcpkg
-          & $env:RUNNER_TEMP/vcpkg/bootstrap-vcpkg.bat
-          $env:RUNNER_TEMP/vcpkg/vcpkg.exe install zlib --triplet x64-windows
+          git clone https://github.com/microsoft/vcpkg.git (Join-Path $env:RUNNER_TEMP "vcpkg")
+          & (Join-Path $env:RUNNER_TEMP "vcpkg\bootstrap-vcpkg.bat")
+          & (Join-Path $env:RUNNER_TEMP "vcpkg\vcpkg.exe") install zlib --triplet x64-windows
           echo "OPENSSL_ROOT_DIR=C:\\Program Files\\OpenSSL" >> $env:GITHUB_ENV
-          echo "CMAKE_TOOLCHAIN_FILE=$env:RUNNER_TEMP/vcpkg/scripts/buildsystems/vcpkg.cmake" >> $env:GITHUB_ENV
+          echo "CMAKE_TOOLCHAIN_FILE=$(Join-Path $env:RUNNER_TEMP 'vcpkg\\scripts\\buildsystems\\vcpkg.cmake')" >> $env:GITHUB_ENV
 
       - name: Configure CMake
         shell: bash

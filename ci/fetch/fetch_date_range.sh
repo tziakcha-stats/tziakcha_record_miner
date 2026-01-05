@@ -21,6 +21,8 @@ OPTIONS:
   -e, --end-date DATE      End date in YYYYMMDD format (default: same as start date)
   -d, --data-dir PATH      Data directory (default: ${data_dir})
   -h, --help               Show this help message
+  --local                  Use local history json instead of fetching
+  --history-file PATH      Local history json path (required when --local)
 
 EXAMPLES:
   # Fetch data for a single day
@@ -44,6 +46,8 @@ log_error() {
 
 start_date=""
 end_date=""
+use_local=false
+local_history_file=""
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -59,6 +63,14 @@ while [[ $# -gt 0 ]]; do
       data_dir="$2"
       shift 2
       ;;
+      --local)
+        use_local=true
+        shift 1
+        ;;
+      --history-file)
+        local_history_file="$2"
+        shift 2
+        ;;
     -h|--help)
       show_usage
       exit 0
@@ -84,6 +96,11 @@ fi
 
 if [[ -z "${end_date}" ]]; then
   end_date="${start_date}"
+fi
+
+if ${use_local} && [[ -z "${local_history_file}" ]]; then
+  log_error "--history-file is required when --local is set"
+  exit 1
 fi
 
 if [[ ! "${end_date}" =~ ^[0-9]{8}$ ]]; then
@@ -119,11 +136,23 @@ log_info "==================================="
 
 log_info ""
 log_info "Step 1/3: Fetching history data..."
-if "${fetcher_cli}" history --start-date "${start_date}" --end-date "${end_date}" --data-dir "${data_dir}"; then
-  log_info "✓ History data saved to: ${data_dir}/${history_file}"
+if ${use_local}; then
+  if [[ ! -f "${local_history_file}" ]]; then
+    log_error "Local history file not found: ${local_history_file}"
+    exit 1
+  fi
+  dest_path="${data_dir}/${history_file}"
+  dest_dir="$(dirname "${dest_path}")"
+  mkdir -p "${dest_dir}"
+  cp "${local_history_file}" "${dest_path}"
+  log_info "✓ Using local history file: ${local_history_file} -> ${dest_path}"
 else
-  log_error "✗ Failed to fetch history data"
-  exit 1
+  if "${fetcher_cli}" history --start-date "${start_date}" --end-date "${end_date}" --data-dir "${data_dir}"; then
+    log_info "✓ History data saved to: ${data_dir}/${history_file}"
+  else
+    log_error "✗ Failed to fetch history data"
+    exit 1
+  fi
 fi
 
 log_info ""

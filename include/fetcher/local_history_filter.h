@@ -18,6 +18,19 @@ public:
                              const std::string& input_key,
                              const std::string& date,
                              const std::string& output_key);
+
+  static bool filter_by_date_range(
+      const std::string& input_key,
+      const std::string& start_date,
+      const std::string& end_date,
+      const std::string& output_key);
+
+  static bool filter_by_date_range(
+      storage::Storage& storage,
+      const std::string& input_key,
+      const std::string& start_date,
+      const std::string& end_date,
+      const std::string& output_key);
 };
 
 } // namespace fetcher

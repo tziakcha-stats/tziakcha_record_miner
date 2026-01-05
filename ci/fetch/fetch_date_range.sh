@@ -141,11 +141,20 @@ if ${use_local}; then
     log_error "Local history file not found: ${local_history_file}"
     exit 1
   fi
-  dest_path="${data_dir}/${history_file}"
-  dest_dir="$(dirname "${dest_path}")"
-  mkdir -p "${dest_dir}"
-  cp "${local_history_file}" "${dest_path}"
-  log_info "✓ Using local history file: ${local_history_file} -> ${dest_path}"
+  
+  temp_history_path="${data_dir}/history/.history_all.json"
+  temp_history_dir="$(dirname "${temp_history_path}")"
+  mkdir -p "${temp_history_dir}"
+  cp "${local_history_file}" "${temp_history_path}"
+  log_info "Copied local history to: ${temp_history_path}"
+  
+  log_info "Filtering local history file by date range: ${start_date} to ${end_date}"
+  if "${fetcher_cli}" local-history -i "history/.history_all" --start-date "${start_date}" --end-date "${end_date}" -o "history/history_${date_range_key}"; then
+    log_info "✓ Filtered local history saved to: ${data_dir}/${history_file}"
+  else
+    log_error "✗ Failed to filter local history file"
+    exit 1
+  fi
 else
   if "${fetcher_cli}" history --start-date "${start_date}" --end-date "${end_date}" --data-dir "${data_dir}"; then
     log_info "✓ History data saved to: ${data_dir}/${history_file}"

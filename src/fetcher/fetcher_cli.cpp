@@ -38,26 +38,60 @@ int cmd_local_history(int argc, char* argv[]) {
       "Input history_all.json path",
       cxxopts::value<std::string>()->default_value("data/history_all.json"))(
       "d,date", "Date to filter (YYYYMMDD)", cxxopts::value<std::string>())(
+      "start-date", "Start date (YYYYMMDD)", cxxopts::value<std::string>())(
+      "end-date", "End date (YYYYMMDD)", cxxopts::value<std::string>())(
       "o,output", "Output json path", cxxopts::value<std::string>())(
       "h,help", "Print help");
 
   auto result = options.parse(argc, argv);
-  if (result.count("help") || !result.count("date")) {
+  if (result.count("help")) {
     std::cout << options.help() << std::endl;
-    return result.count("help") ? 0 : 1;
-  }
-  std::string input = result["input"].as<std::string>();
-  std::string date  = result["date"].as<std::string>();
-  std::string output =
-      result.count("output") ? result["output"].as<std::string>()
-                             : ("data/history_" + date + ".json");
-  if (tziakcha::fetcher::LocalHistoryFilter::filter_by_date(
-          input, date, output)) {
-    std::cout << "Filtered records for date " << date << " saved to " << output
-              << std::endl;
     return 0;
+  }
+
+  std::string input = result["input"].as<std::string>();
+
+  // Support both single date and date range
+  if (result.count("start-date") || result.count("end-date")) {
+    if (!result.count("start-date") || !result.count("end-date")) {
+      std::cerr << "Error: both --start-date and --end-date are required"
+                << std::endl;
+      return 1;
+    }
+    std::string start_date = result["start-date"].as<std::string>();
+    std::string end_date   = result["end-date"].as<std::string>();
+    std::string date_range_key =
+        (start_date == end_date) ? start_date : (start_date + "_" + end_date);
+    std::string output =
+        result.count("output") ? result["output"].as<std::string>()
+                               : ("data/history_" + date_range_key + ".json");
+    if (tziakcha::fetcher::LocalHistoryFilter::filter_by_date_range(
+            input, start_date, end_date, output)) {
+      std::cout << "Filtered records for date range " << start_date << " to "
+                << end_date << " saved to " << output << std::endl;
+      return 0;
+    } else {
+      std::cerr << "Failed to filter local history file." << std::endl;
+      return 1;
+    }
+  } else if (result.count("date")) {
+    std::string date = result["date"].as<std::string>();
+    std::string output =
+        result.count("output") ? result["output"].as<std::string>()
+                               : ("data/history_" + date + ".json");
+    if (tziakcha::fetcher::LocalHistoryFilter::filter_by_date(
+            input, date, output)) {
+      std::cout << "Filtered records for date " << date << " saved to "
+                << output << std::endl;
+      return 0;
+    } else {
+      std::cerr << "Failed to filter local history file." << std::endl;
+      return 1;
+    }
   } else {
-    std::cerr << "Failed to filter local history file." << std::endl;
+    std::cerr << "Error: either --date or --start-date/--end-date required"
+              << std::endl;
+    std::cout << options.help() << std::endl;
     return 1;
   }
 }

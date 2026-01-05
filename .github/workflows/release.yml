@@ -53,7 +53,7 @@ jobs:
         run: |
           choco install ninja -y
           choco install openssl.light -y
-          choco install zlib -y
+          choco install zlib.portable -y
           echo "OPENSSL_ROOT_DIR=C:\\Program Files\\OpenSSL-Win64" >> $env:GITHUB_ENV
           echo "ZLIB_ROOT=C:\\ProgramData\\chocolatey\\lib\\zlib\\tools\\zlib" >> $env:GITHUB_ENV
 

@@ -2,6 +2,7 @@ add_library(fetcher
     history_fetcher.cpp
     session_fetcher.cpp
     record_fetcher.cpp
+    local_history_filter.cpp
     ../../third_party/cpp-base64/base64.cpp
 )
 

@@ -1,4 +1,5 @@
 #include "fetcher/history_fetcher.h"
+#include "fetcher/local_history_filter.h"
 #include "fetcher/session_fetcher.h"
 #include "fetcher/record_fetcher.h"
 #include "config/fetcher_config.h"
@@ -23,9 +24,42 @@ void print_usage() {
   std::cout << "  session     Fetch a single session by ID\n";
   std::cout << "  record      Fetch a single record by ID\n";
   std::cout << "  records     Batch fetch records from session JSON\n";
+  std::cout << "  local-history  Filter local history_all.json by date\n";
   std::cout << "  help        Show this help message\n\n";
   std::cout << "Run 'fetcher_cli <command> --help' for more information on a "
                "command.\n";
+}
+
+int cmd_local_history(int argc, char* argv[]) {
+  cxxopts::Options options(
+      "fetcher_cli local-history", "Filter local history_all.json by date");
+  options.add_options()(
+      "i,input",
+      "Input history_all.json path",
+      cxxopts::value<std::string>()->default_value("data/history_all.json"))(
+      "d,date", "Date to filter (YYYYMMDD)", cxxopts::value<std::string>())(
+      "o,output", "Output json path", cxxopts::value<std::string>())(
+      "h,help", "Print help");
+
+  auto result = options.parse(argc, argv);
+  if (result.count("help") || !result.count("date")) {
+    std::cout << options.help() << std::endl;
+    return result.count("help") ? 0 : 1;
+  }
+  std::string input = result["input"].as<std::string>();
+  std::string date  = result["date"].as<std::string>();
+  std::string output =
+      result.count("output") ? result["output"].as<std::string>()
+                             : ("data/history_" + date + ".json");
+  if (tziakcha::fetcher::LocalHistoryFilter::filter_by_date(
+          input, date, output)) {
+    std::cout << "Filtered records for date " << date << " saved to " << output
+              << std::endl;
+    return 0;
+  } else {
+    std::cerr << "Failed to filter local history file." << std::endl;
+    return 1;
+  }
 }
 
 int cmd_history(int argc, char* argv[]) {
@@ -530,6 +564,8 @@ int main(int argc, char* argv[]) {
     return cmd_record(argc - 1, argv + 1);
   } else if (command == "records") {
     return cmd_records(argc - 1, argv + 1);
+  } else if (command == "local-history") {
+    return cmd_local_history(argc - 1, argv + 1);
   } else {
     std::cerr << "Unknown command: " << command << std::endl;
     std::cerr << "Run 'fetcher_cli help' for usage." << std::endl;

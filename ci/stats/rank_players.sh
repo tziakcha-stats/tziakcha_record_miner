@@ -6,10 +6,36 @@ root_dir="$(cd -- "${script_dir}/../.." && pwd)"
 players_dir="${root_dir}/data/player"
 rank_dir="${root_dir}/data/rank"
 
+keyword=""
+
+while getopts "p:r:h" opt; do
+  case "$opt" in
+    p) players_dir="$OPTARG" ;;
+    r) rank_dir="$OPTARG" ;;
+    h)
+      echo "Usage: $0 [-p <players_dir>] [-r <rank_dir>] <keyword>"
+      echo "Options:"
+      echo "  -p <dir>   Players data directory (default: \${root_dir}/data/player)"
+      echo "  -r <dir>   Rank output directory (default: \${root_dir}/data/rank)"
+      echo "  -h         Show this help message"
+      echo ""
+      echo "Examples:"
+      echo "  $0 average_step_seconds"
+      echo "  $0 -p ./data/player -r ./rank stats.average_step_seconds"
+      exit 0
+      ;;
+    *)
+      echo "Invalid option: -$OPTARG" >&2
+      exit 1
+      ;;
+  esac
+done
+
+shift $((OPTIND - 1))
+
 if [[ $# -eq 0 ]]; then
-  echo "Usage: $0 <keyword>" >&2
-  echo "Example: $0 average_step_seconds" >&2
-  echo "         $0 stats.average_step_seconds" >&2
+  echo "Error: keyword is required" >&2
+  echo "Usage: $0 [-p <players_dir>] [-r <rank_dir>] <keyword>" >&2
   exit 1
 fi
 

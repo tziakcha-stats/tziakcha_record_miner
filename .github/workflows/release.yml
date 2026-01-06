@@ -23,11 +23,11 @@ jobs:
             openssl_root: /opt/homebrew/opt/openssl@3
             zlib_root: ""
             ext: ""
-          # - os: windows-latest
-          #   artifact_suffix: windows-x86_64
-          #   openssl_root: ""
-          #   zlib_root: ""
-          #   ext: ".exe"
+          - os: windows-latest
+            artifact_suffix: windows-x86_64
+            openssl_root: ""
+            zlib_root: ""
+            ext: ".exe"
 
     steps:
       - name: Checkout code
@@ -99,7 +99,7 @@ jobs:
           tar -czf release-${{ matrix.artifact_suffix }}.tar.gz -C artifacts/${{ matrix.artifact_suffix }} .
 
       - name: Upload artifact
-        if: matrix.os != 'windows-latest'
+        # if: matrix.os != 'windows-latest'
         uses: actions/upload-artifact@v4
         with:
           name: release-${{ matrix.artifact_suffix }}

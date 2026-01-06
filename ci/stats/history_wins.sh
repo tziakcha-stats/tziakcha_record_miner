@@ -75,16 +75,12 @@ fi
   echo "Generated at: $(date '+%Y-%m-%d %H:%M:%S')"
   echo "======================================"
   echo ""
-  printf "%-5s\t%-6s\t%-30s\t%-25s\t%-8s\t%-8s\t%-10s\n" "Rank" "Fan" "Hand" "Fan Types" "Win Type" "Player" "Record"
+  printf "%-5s\t%-6s\t%-60s\t%-40s\t%-8s\t%-10s\t%-12s\n" "Rank" "Fan" "Hand" "Fan Types" "Win Type" "Player" "Record"
   echo "--------------------------------------"
   
   rank=1
   sort -rn "${temp_file}" 2>/dev/null | head -n "${top_k}" 2>/dev/null | while IFS=$'\t' read -r fan_count hand_raw fan_types win_type player_id record_id; do
-    # Truncate long fields for display
-    hand_display="${hand_raw:0:30}"
-    fan_display="${fan_types:0:25}"
-    
-    printf "%-5d\t%-6s\t%-30s\t%-25s\t%-8s\t%-8s\t%-10s\n" "$rank" "$fan_count" "$hand_display" "$fan_display" "$win_type" "$player_id" "$record_id"
+    printf "%-5d\t%-6s\t%-60s\t%-40s\t%-8s\t%-10s\t%-12s\n" "$rank" "$fan_count" "$hand_raw" "$fan_types" "$win_type" "$player_id" "$record_id"
     ((rank++))
   done || true
 } > "${output_file}"

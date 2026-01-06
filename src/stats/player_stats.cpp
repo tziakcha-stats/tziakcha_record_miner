@@ -1,4 +1,5 @@
 #include "stats/player_stats.h"
+#include "base/tziakcha.h"
 
 #include "base/mahjong_constants.h"
 #include "stats/player_stats_config.h"
@@ -268,9 +269,33 @@ DurationBreakdown ComputeActionDurations(const json& record_json) {
       continue;
     }
 
-    int combined   = act[0].get<int>();
-    int player_idx = (combined >> 4) & 3;
-    if (player_idx >= 0 &&
+    int combined    = act[0].get<int>();
+    int player_idx  = (combined >> 4) & 3;
+    int action_type = combined & base::kActionTypeMask;
+    int data =
+        act.size() > 1 && act[1].is_number_integer() ? act[1].get<int>() : 0;
+
+    bool is_auto_action = false;
+
+    switch (action_type) {
+    case base::kActionTypeFlowerReplace:
+      is_auto_action = (data & base::kFlowerAutoMask) != 0;
+      break;
+    case base::kActionTypeWin:
+      is_auto_action = (data & base::kWinAutoMask) != 0;
+      break;
+    case base::kActionTypeDraw:
+      is_auto_action = true;
+      break;
+    case base::kActionTypePass:
+      is_auto_action = (data & base::kPassModeMask) != 0;
+      break;
+    default:
+      is_auto_action = false;
+      break;
+    }
+
+    if (!is_auto_action && player_idx >= 0 &&
         player_idx < static_cast<int>(out.player_ms.size())) {
       out.player_ms[player_idx] += delta;
     }

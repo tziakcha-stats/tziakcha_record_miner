@@ -1,5 +1,6 @@
 #include "analyzer/action.h"
 #include "base/mahjong_constants.h"
+#include "base/tziakcha.h"
 #include "utils/tile.h"
 #include <algorithm>
 #include <glog/logging.h>
@@ -14,14 +15,14 @@ void ActionProcessor::ProcessAction(const Action& action) {
   int a_type = action.action_type;
   int data   = action.data;
 
-  int lo_byte = data & 0xFF;
-  int hi_byte = (data >> 8) & 0xFF;
+  int lo_byte = data & base::kLowByteMask;
+  int hi_byte = (data >> base::kHighByteShift) & base::kLowByteMask;
 
   switch (a_type) {
-  case 0:
+  case base::kActionTypeNone:
     break;
-  case 1: {
-    int ot = (hi_byte & 15) + 136;
+  case base::kActionTypeFlowerReplace: {
+    int ot = (hi_byte & 15) + base::kFlowerTileOffset;
     state_.AddFlowerCount(p_idx);
     state_.GetPlayerFlowerTiles(p_idx).push_back(ot);
     RemoveTileFromHand(p_idx, ot);
@@ -35,11 +36,12 @@ void ActionProcessor::ProcessAction(const Action& action) {
               << ", wall_back=" << state_.GetWallBackPtr();
     break;
   }
-  case 2: {
+  case base::kActionTypeDiscard: {
     state_.SetCurrentPlayerIdx(p_idx);
     int tile            = lo_byte;
-    bool is_hand_played = ((hi_byte & 1) != 0);
-    int play_mode       = (data >> 9) & 3;
+    bool is_hand_played = ((hi_byte & base::kDiscardHandPlayedMask) != 0);
+    int play_mode =
+        (data >> base::kDiscardPlayModeShift) & base::kDiscardPlayModeMask;
 
     RemoveTileFromHand(p_idx, tile);
     state_.GetPlayerDiscards(p_idx).push_back(tile);
@@ -52,29 +54,34 @@ void ActionProcessor::ProcessAction(const Action& action) {
               << (is_hand_played ? " (hand)" : " (drawn)");
     break;
   }
-  case 3:
+  case base::kActionTypeChi:
     ProcessChiAction(p_idx, data);
     break;
-  case 4: {
+  case base::kActionTypePeng: {
     if (data == 0)
       break;
-    int tile_val        = (data & 0x3F) << 2;
-    int actual_tile     = tile_val + ((data >> 10) & 3);
-    int offer_direction = (data >> 6) & 3;
+    int tile_val = (data & base::kPengTileBaseMask) << base::kPengTileBaseShift;
+    int actual_tile =
+        tile_val +
+        ((data >> base::kPengTileOffsetShift) & base::kPengTileOffsetMask);
+    int offer_direction = (data >> base::kPengOfferDirectionShift) &
+                          base::kPengOfferDirectionMask;
     ProcessPengAction(p_idx, actual_tile, offer_direction);
     break;
   }
-  case 5: {
+  case base::kActionTypeGang: {
     if (data == 0)
       break;
-    int tile_val    = (data & 0x3F) << 2;
-    int actual_tile = tile_val + ((data >> 10) & 3);
+    int tile_val = (data & base::kGangTileBaseMask) << base::kGangTileBaseShift;
+    int actual_tile =
+        tile_val +
+        ((data >> base::kGangTileOffsetShift) & base::kGangTileOffsetMask);
     ProcessGangAction(p_idx, actual_tile, data);
     break;
   }
-  case 6: {
-    bool is_auto  = (data & 1) != 0;
-    int fan_count = data >> 1;
+  case base::kActionTypeWin: {
+    bool is_auto  = (data & base::kWinAutoMask) != 0;
+    int fan_count = data >> base::kWinFanCountShift;
 
     LOG(INFO) << "  IMPORTANT: Player " << p_idx << " HU: "
               << (is_auto ? "auto" : "manual") << ", fans=" << fan_count;
@@ -82,7 +89,7 @@ void ActionProcessor::ProcessAction(const Action& action) {
     ProcessWin(p_idx, json{{"fans", fan_count}, {"is_auto", is_auto}});
     break;
   }
-  case 7: {
+  case base::kActionTypeDraw: {
     state_.SetCurrentPlayerIdx(p_idx);
     int tile_to_draw      = lo_byte;
     bool is_backward_draw = (hi_byte != 0);
@@ -103,19 +110,20 @@ void ActionProcessor::ProcessAction(const Action& action) {
               << ", wall_back=" << state_.GetWallBackPtr();
     break;
   }
-  case 8: {
-    int pass_mode = data & 3;
+  case base::kActionTypePass: {
+    int pass_mode = data & base::kPassModeMask;
     std::string mode_str =
-        (pass_mode == 0)   ? "manual"
-        : (pass_mode == 1) ? "auto"
-                           : "forced";
+        (pass_mode == base::kPassModeManual) ? "manual"
+        : (pass_mode == base::kPassModeAuto)
+            ? "auto"
+            : "forced";
 
     LOG(INFO) << "  Player " << p_idx << " passed (" << mode_str
               << "): " << "cannot chi/peng/gang";
     ProcessPass(p_idx);
     break;
   }
-  case 9: {
+  case base::kActionTypeAbandon: {
     LOG(INFO) << "  Player " << p_idx << " abandoned declared win (弃)";
     ProcessAbandonment(p_idx);
     break;
@@ -158,8 +166,9 @@ bool ActionProcessor::ProcessFlowerReplacement(
 }
 
 bool ActionProcessor::ProcessChiAction(int player_idx, int data) {
-  int tile_val        = (data & 0x3F) << 2;
-  int offer_direction = (data >> 6) & 3;
+  int tile_val = (data & base::kPengTileBaseMask) << base::kPengTileBaseShift;
+  int offer_direction =
+      (data >> base::kPengOfferDirectionShift) & base::kPengOfferDirectionMask;
 
   state_.SetCurrentPlayerIdx(player_idx);
 
@@ -262,9 +271,11 @@ bool ActionProcessor::ProcessGangAction(
   state_.SetLastActionKong(true);
   state_.SetCurrentPlayerIdx(player_idx);
 
-  int offer_direction = (data >> 6) & 3;
-  bool is_add_kong    = (data & 0x0300) == 0x0300;
-  bool is_concealed   = offer_direction == 0;
+  int offer_direction =
+      (data >> base::kGangOfferDirectionShift) & base::kGangOfferDirectionMask;
+  bool is_add_kong =
+      (data & base::kGangPromotedMask) == base::kGangPromotedValue;
+  bool is_concealed = offer_direction == 0;
 
   state_.SetLastActionAddKong(is_add_kong);
 

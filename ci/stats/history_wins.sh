@@ -53,7 +53,7 @@ trap 'rm -f "${temp_file}"' EXIT
 
 # Extract all wins from all player files
 find "${players_dir}" -name '*.json' -type f -print0 |
-  xargs -0 -n1 sh -c '
+  xargs -0 -n1 bash -c '
     file="$1"
     player_id=$(jq -r ".player_id // empty" "$file")
     if [[ -z "$player_id" ]]; then

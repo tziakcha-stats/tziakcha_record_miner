@@ -1,14 +1,21 @@
 #include "calc/fan_calculator.h"
-#include <execinfo.h>
 #include <glog/logging.h>
 #include <sstream>
 #include "print.h"
 #include "console.h"
 
+#if defined(__unix__) || defined(__APPLE__)
+#  include <execinfo.h>
+#  define HAS_BACKTRACE 1
+#else
+#  define HAS_BACKTRACE 0
+#endif
+
 namespace calc {
 
 namespace {
 void LogStackTrace(const char* context) {
+#if HAS_BACKTRACE
   void* buffer[64];
   int nptrs      = backtrace(buffer, 64);
   char** strings = backtrace_symbols(buffer, nptrs);
@@ -19,6 +26,10 @@ void LogStackTrace(const char* context) {
   }
   free(strings);
   LOG(ERROR) << oss.str();
+#else
+  LOG(ERROR) << "Stack trace (" << context
+             << "): Not available on this platform";
+#endif
 }
 } // namespace
 

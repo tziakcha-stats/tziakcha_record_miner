@@ -28,6 +28,11 @@ target_link_libraries(fetcher PUBLIC
     utils
 )
 
+# Link Windows socket library on Windows
+if(WIN32)
+    target_link_libraries(fetcher PUBLIC ws2_32)
+endif()
+
 add_executable(fetcher_cli 
     fetcher_cli.cpp
 )

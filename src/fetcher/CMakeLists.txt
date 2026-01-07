@@ -28,9 +28,9 @@ target_link_libraries(fetcher PUBLIC
     utils
 )
 
-# Link Windows socket library on Windows
+# Link Windows libraries on Windows
 if(WIN32)
-    target_link_libraries(fetcher PUBLIC ws2_32)
+    target_link_libraries(fetcher PUBLIC ws2_32 crypt32)
 endif()
 
 add_executable(fetcher_cli 

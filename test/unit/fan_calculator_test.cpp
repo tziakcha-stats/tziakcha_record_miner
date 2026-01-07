@@ -29,7 +29,7 @@ TEST_F(FanCalculatorTest, IsWinningHandPinghu) {
 }
 
 TEST_F(FanCalculatorTest, NotWinningHand) {
-  ASSERT_TRUE(calculator->ParseHandtiles("123456789m"));
+  ASSERT_TRUE(calculator->ParseHandtiles("123m456p789s124sEE"));
   EXPECT_FALSE(calculator->IsWinningHand());
 }
 
@@ -93,7 +93,7 @@ TEST_F(FanCalculatorTest, CalculateFanBeforeParse) {
 }
 
 TEST_F(FanCalculatorTest, CalculateFanNotWinning) {
-  ASSERT_TRUE(calculator->ParseHandtiles("123456789m"));
+  ASSERT_TRUE(calculator->ParseHandtiles("123m456p789s124sEE"));
   EXPECT_FALSE(calculator->CalculateFan());
 }
 

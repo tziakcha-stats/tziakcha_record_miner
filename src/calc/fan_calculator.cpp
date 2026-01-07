@@ -168,8 +168,8 @@ std::vector<FanResult> FanCalculator::GetFanDetails() const {
       results.push_back(result);
 
       LOG(INFO) << "Fan detail: " << result.fan_name << " (" << result.fan_score
-                << " fan) "
-                << "with " << result.pack_descriptions.size() << " pack(s)";
+                << " fan) " << "with " << result.pack_descriptions.size()
+                << " pack(s)";
     }
   }
 

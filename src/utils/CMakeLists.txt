@@ -2,6 +2,7 @@ add_library(utils
     script_decoder.cpp
     tile.cpp
     gb_format_converter.cpp
+    shanten_utils.cpp
     ../../third_party/cpp-base64/base64.cpp
 )
 
@@ -9,6 +10,8 @@ target_include_directories(utils PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/../../include
     ${CMAKE_CURRENT_SOURCE_DIR}/../../third_party/json/include
     ${CMAKE_CURRENT_SOURCE_DIR}/../../third_party/cpp-base64
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../third_party/GB-Mahjong/mahjong
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../third_party/GB-Mahjong/console
 )
 
 find_package(ZLIB REQUIRED)

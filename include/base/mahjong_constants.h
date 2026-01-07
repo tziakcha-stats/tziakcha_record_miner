@@ -59,9 +59,16 @@ inline const std::array<std::string, 89> FAN_NAMES = {
     "断幺",        "一般高",      "喜相逢",       "连六",        "老少副",
     "幺九刻",      "明杠",        "缺一门",       "无字",        "独听・边张",
     "独听・嵌张",  "独听・单钓",  "自摸",         "花牌",        "明暗杠",
-    "\u203b 天和", "\u203b 地和", "\u203b 人和Ⅰ", "\u203b 人和Ⅱ"
+    "\u203b 天和", "\u203b 地和", "\u203b 人和Ⅰ", "\u203b 人和Ⅱ"};
 
-};
+inline const std::vector<int> SHANTEN_ORPHANS = {
+    0, 8, 9, 17, 18, 26, 27, 28, 29, 30, 31, 32, 33};
+
+inline const std::vector<std::vector<int>> SHANTEN_OFFSETS = {
+    {0, 3, 6}, {1, 4, 7}, {2, 5, 8}};
+
+inline const std::vector<std::vector<int>> SHANTEN_PERMUTATIONS = {
+    {0, 1, 2}, {0, 2, 1}, {1, 0, 2}, {1, 2, 0}, {2, 0, 1}, {2, 1, 0}};
 
 } // namespace base
 } // namespace tziakcha

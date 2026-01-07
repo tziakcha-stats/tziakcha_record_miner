@@ -37,3 +37,8 @@ add_unit_test(storage_test
 add_unit_test(mahjong_constants_test
     SOURCES mahjong_constants_test.cpp
 )
+
+add_unit_test(shanten_test
+    SOURCES shanten_test.cpp
+    LINK_LIBRARIES fan_calculator_core
+)

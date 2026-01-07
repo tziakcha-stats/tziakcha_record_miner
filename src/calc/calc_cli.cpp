@@ -2,7 +2,9 @@
 #include <string>
 #include <glog/logging.h>
 #include <cxxopts.hpp>
+#include <cxxopts.hpp>
 #include "calc/fan_calculator.h"
+#include "calc/shanten_calculator.h"
 
 void PrintUsageExamples() {
   std::cout << "Examples:\n";
@@ -79,9 +81,40 @@ int main(int argc, char* argv[]) {
               << calculator.GetStandardHandtilesString();
 
     if (!calculator.IsWinningHand()) {
-      LOG(WARNING) << "Not a winning hand";
-      std::cout << "Not a winning hand\n";
-      return 1;
+      LOG(INFO) << "Not a winning hand, calculating shanten";
+
+      mahjong::Handtiles hand;
+      if (hand.StringToHandtiles(handtiles_str) == -1) {
+        std::cerr << "Error re-parsing handtiles\n";
+        return 1;
+      }
+
+      calc::ShantenCalculator shanten_calc;
+      auto result = shanten_calc.Calculate(hand);
+      shanten_calc.CalculateKnittedDragonDetail(hand, result);
+
+      std::cout << "Shanten Info:\n";
+      auto print_shanten = [](const std::string& name, int val) {
+        std::cout << name << ":\t" << val << " 向听\n";
+      };
+
+      print_shanten("一般型", result.standard);
+      print_shanten("七对型", result.seven_pairs);
+      print_shanten("十三幺型", result.thirteen_orphans);
+      print_shanten("全不靠型", result.all_unrelated);
+      print_shanten("组合龙型", result.knitted_dragon);
+
+      if (!result.knitted_dragon_details.empty()) {
+        for (const auto& detail : result.knitted_dragon_details) {
+          std::cout << "  打 " << detail.discard_tile << " 待 "
+                    << detail.waiting_tiles.size() << " 枚 ";
+          for (const auto& w : detail.waiting_tiles)
+            std::cout << w << "";
+          std::cout << "\n";
+        }
+      }
+
+      return 0;
     }
 
     LOG(INFO) << "Confirmed winning hand, proceeding with fan calculation";

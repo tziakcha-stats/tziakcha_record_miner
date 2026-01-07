@@ -10,6 +10,11 @@ namespace calc {
 struct ShantenDetail {
   std::string discard_tile;
   std::vector<std::string> waiting_tiles;
+
+  std::map<std::string, int> wait_counts;
+  int total_wait_count   = 0;
+  int good_shape_count   = 0;
+  double good_shape_rate = 0.0;
 };
 
 struct ShantenResult {
@@ -20,6 +25,8 @@ struct ShantenResult {
   int knitted_dragon   = 99;
 
   std::vector<ShantenDetail> knitted_dragon_details;
+
+  std::vector<ShantenDetail> analysis;
 };
 
 } // namespace calc

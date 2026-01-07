@@ -38,6 +38,8 @@ ShantenResult ShantenCalculator::Calculate(const mahjong::Handtiles& hand) {
   result.knitted_dragon =
       ShantenAlgo::CalculateKnittedDragon(tiles, melds_count);
 
+  AnalyzeWait(hand, result);
+
   return result;
 }
 
@@ -71,6 +73,77 @@ void ShantenCalculator::CalculateKnittedDragonDetail(
       tiles[i]++;
     }
   }
+}
+
+void ShantenCalculator::AnalyzeWait(const mahjong::Handtiles& hand,
+                                    ShantenResult& result) {
+  if (result.standard != 1) {
+    return;
+  }
+
+  std::vector<int> original_tiles = tziakcha::utils::ConvertHandToAlgo(hand);
+  int melds_count                 = hand.fulu.size();
+
+  for (int i = 0; i < 34; ++i) {
+    if (original_tiles[i] > 0) {
+      original_tiles[i]--;
+
+      ShantenDetail detail;
+      detail.discard_tile = tziakcha::utils::GetAlgoTileName(i);
+
+      for (int k = 0; k < 34; ++k) {
+        if (original_tiles[k] < 4) {
+          original_tiles[k]++;
+
+          int new_shanten =
+              ShantenAlgo::CalculateStandard(original_tiles, melds_count);
+          if (new_shanten == 0) {
+            std::string wait_tile_name = tziakcha::utils::GetAlgoTileName(k);
+            int count                  = 4 - original_tiles[k] + 1;
+            int effective_count        = 5 - original_tiles[k];
+
+            detail.wait_counts[wait_tile_name] = effective_count;
+            detail.total_wait_count += effective_count;
+            detail.waiting_tiles.push_back(wait_tile_name);
+
+            int tenpai_wait_count = 0;
+            for (int w = 0; w < 34; ++w) {
+              if (original_tiles[w] < 4) {
+                original_tiles[w]++;
+                int check_win =
+                    ShantenAlgo::CalculateStandard(original_tiles, melds_count);
+                if (check_win == -1) {
+                  tenpai_wait_count += (5 - original_tiles[w]);
+                }
+                original_tiles[w]--;
+              }
+            }
+
+            if (tenpai_wait_count >= 6) {
+              detail.good_shape_count += effective_count;
+            }
+          }
+          original_tiles[k]--;
+        }
+      }
+
+      if (detail.total_wait_count > 0) {
+        detail.good_shape_rate =
+            (double)detail.good_shape_count / detail.total_wait_count * 100.0;
+        result.analysis.push_back(detail);
+      }
+
+      original_tiles[i]++;
+    }
+  }
+
+  std::sort(result.analysis.begin(),
+            result.analysis.end(),
+            [](const ShantenDetail& a, const ShantenDetail& b) {
+              if (a.total_wait_count != b.total_wait_count)
+                return a.total_wait_count > b.total_wait_count;
+              return a.discard_tile < b.discard_tile;
+            });
 }
 
 } // namespace calc

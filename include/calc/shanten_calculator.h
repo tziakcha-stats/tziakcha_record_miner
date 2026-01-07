@@ -16,6 +16,8 @@ public:
 
   void CalculateKnittedDragonDetail(const mahjong::Handtiles& hand,
                                     ShantenResult& result);
+
+  void AnalyzeWait(const mahjong::Handtiles& hand, ShantenResult& result);
 };
 
 } // namespace calc

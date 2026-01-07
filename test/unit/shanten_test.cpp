@@ -103,3 +103,44 @@ TEST_F(ShantenTest, Example13Tile_3_Tenpai) {
   EXPECT_EQ(result.all_unrelated, 8);
   EXPECT_EQ(result.knitted_dragon, 5);
 }
+
+TEST_F(ShantenTest, New_Example1) {
+  auto hand   = CreateHand("79m12449p2248sWPP");
+  auto result = calculator.Calculate(hand);
+
+  EXPECT_EQ(result.standard, 3);
+  EXPECT_EQ(result.seven_pairs, 3);
+  EXPECT_EQ(result.thirteen_orphans, 7);
+  EXPECT_EQ(result.all_unrelated, 6);
+  EXPECT_EQ(result.knitted_dragon, 4);
+}
+
+TEST_F(ShantenTest, New_Example2) {
+  auto hand   = CreateHand("1366m669p226sSSWW");
+  auto result = calculator.Calculate(hand);
+
+  EXPECT_EQ(result.standard, 3);
+  EXPECT_EQ(result.seven_pairs, 1);
+  EXPECT_EQ(result.thirteen_orphans, 8);
+  EXPECT_EQ(result.all_unrelated, 7);
+  EXPECT_EQ(result.knitted_dragon, 5);
+}
+
+TEST_F(ShantenTest, WaitAnalysis_Example4) {
+  auto hand   = CreateHand("4567m5678p123499s");
+  auto result = calculator.Calculate(hand);
+
+  EXPECT_EQ(result.standard, 1);
+  EXPECT_EQ(result.analysis.empty(), false);
+
+  bool found_1s = false;
+  for (const auto& detail : result.analysis) {
+    if (detail.discard_tile == "1s") {
+      found_1s = true;
+      EXPECT_GT(detail.total_wait_count, 0);
+      EXPECT_GT(detail.good_shape_count, 0);
+      EXPECT_NEAR(detail.good_shape_rate, 55.56, 1.0);
+    }
+  }
+  EXPECT_TRUE(found_1s);
+}

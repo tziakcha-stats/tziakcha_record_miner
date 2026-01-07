@@ -84,7 +84,7 @@ int main(int argc, char* argv[]) {
       LOG(INFO) << "Not a winning hand, calculating shanten";
 
       mahjong::Handtiles hand;
-      if (hand.StringToHandtiles(handtiles_str) == -1) {
+      if (hand.StringToHandtiles(handtiles_str) != 0) {
         std::cerr << "Error re-parsing handtiles\n";
         return 1;
       }
@@ -106,11 +106,29 @@ int main(int argc, char* argv[]) {
 
       if (!result.knitted_dragon_details.empty()) {
         for (const auto& detail : result.knitted_dragon_details) {
-          std::cout << "  打 " << detail.discard_tile << " 待 "
-                    << detail.waiting_tiles.size() << " 枚 ";
-          for (const auto& w : detail.waiting_tiles)
-            std::cout << w << "";
-          std::cout << "\n";
+          std::cout << "打 " << detail.discard_tile << " 待";
+          for (const auto& w : detail.waiting_tiles) {
+            std::cout << " " << w;
+          }
+          std::cout << std::endl;
+        }
+      }
+
+      if (!result.analysis.empty()) {
+        for (const auto& detail : result.analysis) {
+          std::cout << "打 " << detail.discard_tile << " 待 "
+                    << detail.total_wait_count << " 枚";
+
+          for (const auto& w : detail.waiting_tiles) {
+            std::cout << " " << w;
+          }
+
+          std::cout << " 好型 " << detail.good_shape_count << " 枚"
+                    << " 愚型 "
+                    << (detail.total_wait_count - detail.good_shape_count)
+                    << " 枚"
+                    << " 好型率 " << std::fixed << std::setprecision(2)
+                    << detail.good_shape_rate << "%" << std::endl;
         }
       }
 

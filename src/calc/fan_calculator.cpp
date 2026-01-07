@@ -43,7 +43,13 @@ bool FanCalculator::ParseHandtiles(const std::string& handtiles_str) {
   LOG(INFO) << "Parsing handtiles string: " << handtiles_str;
 
   try {
-    handtiles_.StringToHandtiles(handtiles_str);
+    int ret = handtiles_.StringToHandtiles(handtiles_str);
+    if (ret != 0) {
+      LOG(ERROR) << "StringToHandtiles failed with code: " << ret;
+      is_parsed_ = false;
+      return false;
+    }
+
     is_parsed_     = true;
     is_calculated_ = false;
 
@@ -162,8 +168,8 @@ std::vector<FanResult> FanCalculator::GetFanDetails() const {
       results.push_back(result);
 
       LOG(INFO) << "Fan detail: " << result.fan_name << " (" << result.fan_score
-                << " fan) " << "with " << result.pack_descriptions.size()
-                << " pack(s)";
+                << " fan) "
+                << "with " << result.pack_descriptions.size() << " pack(s)";
     }
   }
 

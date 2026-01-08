@@ -14,7 +14,7 @@ while getopts "p:r:hd" opt; do
   case "$opt" in
     p) players_dir="$OPTARG" ;;
     r) rank_dir="$OPTARG" ;;
-    d) debug_mode=false ;;
+    d) debug_mode=true ;;
     h)
       echo "Usage: $0 [-p <players_dir>] [-r <rank_dir>] [-d] <keyword>"
       echo "Options:"
@@ -43,7 +43,7 @@ if [[ "${debug_mode}" == "true" ]]; then
     exit 1
   fi
   
-  first_file=$(find "${players_dir}" -name '*.json' -type f | head -n 1)
+  first_file=$(find "${players_dir}" -name '*.json' -type f -print -quit)
   if [[ -z "${first_file}" ]]; then
     echo "No JSON files found in ${players_dir}" >&2
     exit 1
@@ -52,7 +52,6 @@ if [[ "${debug_mode}" == "true" ]]; then
   echo "Debug: Listing all fields in ${first_file}"
   # Show all paths (keys flattened)
   jq -r '[paths | map(tostring) | join(".")] | .[]' "${first_file}"
-  exit 0
 fi
 
 if [[ $# -eq 0 ]]; then

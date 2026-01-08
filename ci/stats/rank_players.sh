@@ -8,15 +8,19 @@ rank_dir="${root_dir}/data/rank"
 
 keyword=""
 
-while getopts "p:r:h" opt; do
+debug_mode=true
+
+while getopts "p:r:hd" opt; do
   case "$opt" in
     p) players_dir="$OPTARG" ;;
     r) rank_dir="$OPTARG" ;;
+    d) debug_mode=false ;;
     h)
-      echo "Usage: $0 [-p <players_dir>] [-r <rank_dir>] <keyword>"
+      echo "Usage: $0 [-p <players_dir>] [-r <rank_dir>] [-d] <keyword>"
       echo "Options:"
       echo "  -p <dir>   Players data directory (default: \${root_dir}/data/player)"
       echo "  -r <dir>   Rank output directory (default: \${root_dir}/data/rank)"
+      echo "  -d         Debug mode: print all fields in the first found JSON file"
       echo "  -h         Show this help message"
       echo ""
       echo "Examples:"
@@ -33,9 +37,27 @@ done
 
 shift $((OPTIND - 1))
 
+if [[ "${debug_mode}" == "true" ]]; then
+  if [[ ! -d "${players_dir}" ]]; then
+    echo "Players directory not found: ${players_dir}" >&2
+    exit 1
+  fi
+  
+  first_file=$(find "${players_dir}" -name '*.json' -type f | head -n 1)
+  if [[ -z "${first_file}" ]]; then
+    echo "No JSON files found in ${players_dir}" >&2
+    exit 1
+  fi
+
+  echo "Debug: Listing all fields in ${first_file}"
+  # Show all paths (keys flattened)
+  jq -r '[paths | map(tostring) | join(".")] | .[]' "${first_file}"
+  exit 0
+fi
+
 if [[ $# -eq 0 ]]; then
   echo "Error: keyword is required" >&2
-  echo "Usage: $0 [-p <players_dir>] [-r <rank_dir>] <keyword>" >&2
+  echo "Usage: $0 [-p <players_dir>] [-r <rank_dir>] [-d] <keyword>" >&2
   exit 1
 fi
 
@@ -67,7 +89,7 @@ find "${players_dir}" -name '*.json' -type f -print0 |
       getpath(\$key | split(\".\")) as \$val |
       select(\$val != null) |
       \"\(\$val)\t\(.name // \"\")\t\(.stats.total_rounds // 0)\t\(input_filename)\"
-    " "$file" 2>/dev/null || true
+    " "$file" || true
   ' _ "${keyword}" >"${temp_file}"
 
 if [[ ! -s "${temp_file}" ]]; then

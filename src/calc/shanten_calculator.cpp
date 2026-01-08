@@ -38,9 +38,37 @@ ShantenResult ShantenCalculator::Calculate(const mahjong::Handtiles& hand) {
   result.knitted_dragon =
       ShantenAlgo::CalculateKnittedDragon(tiles, melds_count);
 
-  AnalyzeWait(hand, result);
+  int tile_count = 0;
+  for (int c : tiles)
+    tile_count += c;
+
+  if (tile_count == 14) {
+    AnalyzeWait(hand, result);
+  } else if (tile_count == 13) {
+    if (result.standard == 0) {
+      result.waiting_tiles = GetWaitingTiles(hand);
+    }
+  }
 
   return result;
+}
+
+std::vector<std::string>
+ShantenCalculator::GetWaitingTiles(const mahjong::Handtiles& hand) {
+  std::vector<std::string> waits;
+  std::vector<int> tiles = tziakcha::utils::ConvertHandToAlgo(hand);
+  int melds              = hand.fulu.size();
+
+  for (int k = 0; k < 34; ++k) {
+    if (tiles[k] < 4) {
+      tiles[k]++;
+      if (ShantenAlgo::CalculateStandard(tiles, melds) == -1) {
+        waits.push_back(tziakcha::utils::GetAlgoTileName(k));
+      }
+      tiles[k]--;
+    }
+  }
+  return waits;
 }
 
 void ShantenCalculator::CalculateKnittedDragonDetail(
@@ -77,7 +105,7 @@ void ShantenCalculator::CalculateKnittedDragonDetail(
 
 void ShantenCalculator::AnalyzeWait(const mahjong::Handtiles& hand,
                                     ShantenResult& result) {
-  if (result.standard != 1) {
+  if (result.standard < 0) {
     return;
   }
 
@@ -97,7 +125,7 @@ void ShantenCalculator::AnalyzeWait(const mahjong::Handtiles& hand,
 
           int new_shanten =
               ShantenAlgo::CalculateStandard(original_tiles, melds_count);
-          if (new_shanten == 0) {
+          if (new_shanten < result.standard) {
             std::string wait_tile_name = tziakcha::utils::GetAlgoTileName(k);
             int count                  = 4 - original_tiles[k] + 1;
             int effective_count        = 5 - original_tiles[k];
@@ -106,21 +134,23 @@ void ShantenCalculator::AnalyzeWait(const mahjong::Handtiles& hand,
             detail.total_wait_count += effective_count;
             detail.waiting_tiles.push_back(wait_tile_name);
 
-            int tenpai_wait_count = 0;
-            for (int w = 0; w < 34; ++w) {
-              if (original_tiles[w] < 4) {
-                original_tiles[w]++;
-                int check_win =
-                    ShantenAlgo::CalculateStandard(original_tiles, melds_count);
-                if (check_win == -1) {
-                  tenpai_wait_count += (5 - original_tiles[w]);
+            if (result.standard == 1) {
+              int tenpai_wait_count = 0;
+              for (int w = 0; w < 34; ++w) {
+                if (original_tiles[w] < 4) {
+                  original_tiles[w]++;
+                  int check_win = ShantenAlgo::CalculateStandard(
+                      original_tiles, melds_count);
+                  if (check_win == -1) {
+                    tenpai_wait_count += (5 - original_tiles[w]);
+                  }
+                  original_tiles[w]--;
                 }
-                original_tiles[w]--;
               }
-            }
 
-            if (tenpai_wait_count >= 6) {
-              detail.good_shape_count += effective_count;
+              if (tenpai_wait_count >= 6) {
+                detail.good_shape_count += effective_count;
+              }
             }
           }
           original_tiles[k]--;

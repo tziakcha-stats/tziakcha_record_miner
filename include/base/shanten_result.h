@@ -27,6 +27,7 @@ struct ShantenResult {
   std::vector<ShantenDetail> knitted_dragon_details;
 
   std::vector<ShantenDetail> analysis;
+  std::vector<std::string> waiting_tiles;
 };
 
 } // namespace calc

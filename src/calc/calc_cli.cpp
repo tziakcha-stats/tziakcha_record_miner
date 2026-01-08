@@ -90,32 +90,40 @@ int main(int argc, char* argv[]) {
       }
 
       calc::ShantenCalculator shanten_calc;
-      auto result = shanten_calc.Calculate(hand);
-      shanten_calc.CalculateKnittedDragonDetail(hand, result);
+      auto shanten_result = shanten_calc.Calculate(hand);
+      shanten_calc.CalculateKnittedDragonDetail(hand, shanten_result);
 
       std::cout << "Shanten Info:\n";
       auto print_shanten = [](const std::string& name, int val) {
         std::cout << name << ":\t" << val << " 向听\n";
       };
 
-      print_shanten("一般型", result.standard);
-      print_shanten("七对型", result.seven_pairs);
-      print_shanten("十三幺型", result.thirteen_orphans);
-      print_shanten("全不靠型", result.all_unrelated);
-      print_shanten("组合龙型", result.knitted_dragon);
+      print_shanten("一般型", shanten_result.standard);
+      print_shanten("七对型", shanten_result.seven_pairs);
+      print_shanten("十三幺型", shanten_result.thirteen_orphans);
+      print_shanten("全不靠型", shanten_result.all_unrelated);
+      print_shanten("组合龙型", shanten_result.knitted_dragon);
 
-      if (!result.knitted_dragon_details.empty()) {
-        for (const auto& detail : result.knitted_dragon_details) {
+      if (!shanten_result.knitted_dragon_details.empty()) {
+        for (const auto& detail : shanten_result.knitted_dragon_details) {
           std::cout << "打 " << detail.discard_tile << " 待";
           for (const auto& w : detail.waiting_tiles) {
             std::cout << " " << w;
           }
           std::cout << std::endl;
         }
+        std::cout << std::endl;
+      }
+      if (!shanten_result.waiting_tiles.empty()) {
+        std::cout << "听牌:";
+        for (const auto& w : shanten_result.waiting_tiles) {
+          std::cout << " " << w;
+        }
+        std::cout << std::endl;
       }
 
-      if (!result.analysis.empty()) {
-        for (const auto& detail : result.analysis) {
+      if (!shanten_result.analysis.empty()) {
+        for (const auto& detail : shanten_result.analysis) {
           std::cout << "打 " << detail.discard_tile << " 待 "
                     << detail.total_wait_count << " 枚";
 
@@ -123,13 +131,18 @@ int main(int argc, char* argv[]) {
             std::cout << " " << w;
           }
 
-          std::cout << " 好型 " << detail.good_shape_count << " 枚" << " 愚型 "
-                    << (detail.total_wait_count - detail.good_shape_count)
-                    << " 枚" << " 好型率 " << std::fixed << std::setprecision(2)
-                    << detail.good_shape_rate << "%" << std::endl;
+          if (shanten_result.standard == 1) {
+            std::cout << " 好型 " << detail.good_shape_count << " 枚"
+                      << " 愚型 "
+                      << (detail.total_wait_count - detail.good_shape_count)
+                      << " 枚"
+                      << " 好型率 " << std::fixed << std::setprecision(2)
+                      << detail.good_shape_rate << "%";
+          }
+          std::cout << std::endl;
         }
+        std::cout << std::endl;
       }
-
       return 0;
     }
 
@@ -176,7 +189,6 @@ int main(int argc, char* argv[]) {
               << " pattern(s)";
 
     return 0;
-
   } catch (const cxxopts::exceptions::exception& e) {
     LOG(ERROR) << "Command line parsing error: " << e.what();
     std::cerr << "Error: " << e.what() << "\n";

@@ -14,6 +14,8 @@ public:
 
   ShantenResult Calculate(const mahjong::Handtiles& hand);
 
+  std::vector<std::string> GetWaitingTiles(const mahjong::Handtiles& hand);
+
   void CalculateKnittedDragonDetail(const mahjong::Handtiles& hand,
                                     ShantenResult& result);
 

@@ -1,6 +1,7 @@
 #include "calc/shanten_calculator.h"
 #include "calc/shanten_algo.h"
 #include "utils/shanten_utils.h"
+#include <algorithm>
 
 namespace calc {
 
@@ -38,7 +39,7 @@ ShantenResult ShantenCalculator::Calculate(const mahjong::Handtiles& hand) {
   result.knitted_dragon =
       ShantenAlgo::CalculateKnittedDragon(tiles, melds_count);
 
-  int tile_count = 0;
+  int tile_count = hand.fulu.size() * 3;
   for (int c : tiles)
     tile_count += c;
 
@@ -142,7 +143,8 @@ void ShantenCalculator::AnalyzeWait(const mahjong::Handtiles& hand,
                   int check_win = ShantenAlgo::CalculateStandard(
                       original_tiles, melds_count);
                   if (check_win == -1) {
-                    tenpai_wait_count += (5 - original_tiles[w]);
+                    int effective_amount = (5 - original_tiles[w]);
+                    tenpai_wait_count += effective_amount;
                   }
                   original_tiles[w]--;
                 }

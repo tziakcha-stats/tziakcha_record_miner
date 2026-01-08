@@ -66,7 +66,7 @@ find "${players_dir}" -name '*.json' -type f -print0 |
     jq -r --arg key "$keyword" "
       getpath(\$key | split(\".\")) as \$val |
       select(\$val != null) |
-      \"\(\$val)\t\(.name // \"\")\t\(input_filename)\"
+      \"\(\$val)\t\(.name // \"\")\t\(.stats.total_rounds // 0)\t\(input_filename)\"
     " "$file" 2>/dev/null || true
   ' _ "${keyword}" >"${temp_file}"
 
@@ -82,12 +82,14 @@ fi
   echo "Total players: $(wc -l < "${temp_file}")"
   echo "======================================"
   echo ""
-  printf "%-6s\t%-12s\t%s\n" "Rank" "Value" "Player Name"
-  echo "--------------------------------------"
+  printf "%-6s\t%-12s\t%-25s\t%s\n" "Rank" "Value" "Player Name" "Rounds"
+  echo "------------------------------------------------------------"
   
   rank=1
-  sort -n "${temp_file}" | while IFS=$'\t' read -r value name filepath; do
-    printf "%-6d\t%-12s\t%s\n" "$rank" "$value" "$name"
+  # Sort numerically descending for most stats; use -r if needed. 
+  # For now keeping sort -n and adding -r if higher is usually better for mahjong rankings.
+  sort -rn "${temp_file}" | while IFS=$'\t' read -r value name rounds filepath; do
+    printf "%-6d\t%-12s\t%-25s\t%s\n" "$rank" "$value" "$name" "$rounds"
     ((rank++))
   done
 } > "${output_file}"

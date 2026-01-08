@@ -55,12 +55,9 @@ trap 'rm -f "${temp_file}"' EXIT
 find "${players_dir}" -name '*.json' -type f -print0 |
   xargs -0 -n1 bash -c '
     file="$1"
-    player_id=$(jq -r ".player_id // empty" "$file")
-    if [[ -z "$player_id" ]]; then
-      exit 0
-    fi
+    player_name=$(jq -r ".name // .player_id // \"Unknown\"" "$file")
     
-    jq -r --arg pid "$player_id" ".wins[]? | [.total_fan, .hand_raw, (.max_fans | map(.name) | join(\"、\")), .win_type, \$pid, .record_id] | @tsv" "$file" 2>/dev/null || true
+    jq -r --arg name "$player_name" ".wins[]? | [.total_fan, .hand_raw, (.max_fans | map(.name) | join(\"、\")), .win_type, \$name, .record_id] | @tsv" "$file" 2>/dev/null || true
   ' _ >"${temp_file}"
 
 if [[ ! -s "${temp_file}" ]]; then
@@ -75,12 +72,12 @@ fi
   echo "Generated at: $(date '+%Y-%m-%d %H:%M:%S')"
   echo "======================================"
   echo ""
-  printf "%-5s\t%-6s\t%-60s\t%-40s\t%-8s\t%-10s\t%-12s\n" "Rank" "Fan" "Hand" "Fan Types" "Win Type" "Player" "Record"
+  printf "%-5s\t%-6s\t%-60s\t%-40s\t%-8s\t%-20s\t%-12s\n" "Rank" "Fan" "Hand" "Fan Types" "Win Type" "Player" "Record"
   echo "--------------------------------------"
   
   rank=1
-  sort -rn "${temp_file}" 2>/dev/null | head -n "${top_k}" 2>/dev/null | while IFS=$'\t' read -r fan_count hand_raw fan_types win_type player_id record_id; do
-    printf "%-5d\t%-6s\t%-60s\t%-40s\t%-8s\t%-10s\t%-12s\n" "$rank" "$fan_count" "$hand_raw" "$fan_types" "$win_type" "$player_id" "$record_id"
+  sort -rn "${temp_file}" 2>/dev/null | head -n "${top_k}" 2>/dev/null | while IFS=$'\t' read -r fan_count hand_raw fan_types win_type player_name record_id; do
+    printf "%-5d\t%-6s\t%-60s\t%-40s\t%-8s\t%-20s\t%-12s\n" "$rank" "$fan_count" "$hand_raw" "$fan_types" "$win_type" "$player_name" "$record_id"
     ((rank++))
   done || true
 } > "${output_file}"

@@ -135,9 +135,8 @@ int main(int argc, char* argv[]) {
             std::cout << " 好型 " << detail.good_shape_count << " 枚"
                       << " 愚型 "
                       << (detail.total_wait_count - detail.good_shape_count)
-                      << " 枚"
-                      << " 好型率 " << std::fixed << std::setprecision(2)
-                      << detail.good_shape_rate << "%";
+                      << " 枚" << " 好型率 " << std::fixed
+                      << std::setprecision(2) << detail.good_shape_rate << "%";
           }
           std::cout << std::endl;
         }

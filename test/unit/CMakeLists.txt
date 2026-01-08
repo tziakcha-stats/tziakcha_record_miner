@@ -42,3 +42,8 @@ add_unit_test(shanten_test
     SOURCES shanten_test.cpp
     LINK_LIBRARIES fan_calculator_core
 )
+
+add_unit_test(starting_hand_test
+    SOURCES starting_hand_test.cpp
+    LINK_LIBRARIES analyzer
+)

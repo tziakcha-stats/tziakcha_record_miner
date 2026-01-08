@@ -12,6 +12,8 @@
 
 using json = nlohmann::json;
 
+#include <map>
+
 namespace tziakcha {
 namespace analyzer {
 
@@ -20,6 +22,7 @@ struct SimulationResult {
   WinAnalysis win_analysis;
   GameLog game_log;
   std::string error_message;
+  std::map<int, std::vector<int>> starting_hands;
 };
 
 class RecordSimulator {
@@ -48,6 +51,8 @@ private:
   GameLog game_log_;
   std::vector<StepLog> step_logs_;
   bool winner_set_from_actions_ = false;
+
+  std::map<int, std::vector<int>> starting_hands_;
 
   std::vector<ActionObserver> action_observers_;
 

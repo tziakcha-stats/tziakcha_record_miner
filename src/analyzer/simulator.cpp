@@ -65,6 +65,7 @@ SimulationResult RecordSimulator::Simulate(const std::string& record_json_str) {
     result.win_analysis       = analyzer_.Analyze();
     result.game_log           = game_log_;
     result.game_log.step_logs = step_logs_;
+    result.starting_hands     = starting_hands_;
 
     LOG(INFO) << "=== Simulation completed successfully ===";
     return result;
@@ -165,6 +166,22 @@ void RecordSimulator::ProcessAllActions() {
     }
 
     int a_type = action.action_type;
+
+    if (a_type == 0) {
+      // Game Start Action - capture the hands (which include flower
+      // replacements)
+      LOG(INFO)
+          << "Action Type 0 (Start Play) detected. Capturing starting hands.";
+      starting_hands_.clear();
+      for (int i = 0; i < 4; ++i) {
+        starting_hands_[i] = state_.GetPlayerHand(i);
+        // Debug log
+        std::ostringstream ss;
+        for (int t : starting_hands_[i])
+          ss << t << " ";
+        LOG(INFO) << "Captured P" << i << " Hand: " << ss.str();
+      }
+    }
 
     if (a_type == 6) {
       int winner_idx = action.player_idx;

@@ -46,6 +46,7 @@ struct WinEntry {
   std::string win_type;
   int total_fan = 0;
   std::string hand_raw;
+  std::string starting_hand_raw;
   std::vector<FanSummary> max_fans;
 };
 
@@ -342,13 +343,14 @@ json ToJson(const FanSummary& f) {
 
 json ToJson(const WinEntry& w) {
   json obj;
-  obj["record_id"]    = w.record_id;
-  obj["session_id"]   = w.session_id;
-  obj["timestamp_ms"] = w.timestamp_ms;
-  obj["win_type"]     = w.win_type;
-  obj["total_fan"]    = w.total_fan;
-  obj["hand_raw"]     = w.hand_raw;
-  obj["max_fans"]     = json::array();
+  obj["record_id"]         = w.record_id;
+  obj["session_id"]        = w.session_id;
+  obj["timestamp_ms"]      = w.timestamp_ms;
+  obj["win_type"]          = w.win_type;
+  obj["total_fan"]         = w.total_fan;
+  obj["hand_raw"]          = w.hand_raw;
+  obj["starting_hand_raw"] = w.starting_hand_raw;
+  obj["max_fans"]          = json::array();
   for (const auto& f : w.max_fans) {
     obj["max_fans"].push_back(ToJson(f));
   }
@@ -419,12 +421,13 @@ PlayerStats FromJson(const json& j) {
   if (j.contains("wins") && j["wins"].is_array()) {
     for (const auto& w : j["wins"]) {
       WinEntry we;
-      we.record_id    = w.value("record_id", "");
-      we.session_id   = w.value("session_id", "");
-      we.timestamp_ms = w.value("timestamp_ms", 0LL);
-      we.win_type     = w.value("win_type", "");
-      we.total_fan    = w.value("total_fan", 0);
-      we.hand_raw     = w.value("hand_raw", "");
+      we.record_id         = w.value("record_id", "");
+      we.session_id        = w.value("session_id", "");
+      we.timestamp_ms      = w.value("timestamp_ms", 0LL);
+      we.win_type          = w.value("win_type", "");
+      we.total_fan         = w.value("total_fan", 0);
+      we.hand_raw          = w.value("hand_raw", "");
+      we.starting_hand_raw = w.value("starting_hand_raw", "");
 
       if (w.contains("max_fans") && w["max_fans"].is_array()) {
         for (const auto& f : w["max_fans"]) {
@@ -666,12 +669,22 @@ bool RunPlayerStats(const PlayerStatsOptions& options) {
     session.duration_ms += durations.record_ms;
 
     std::string gb_hand_str;
+    std::string starting_hand_str;
     if (!is_draw) {
       analyzer::RecordSimulator simulator;
       auto sim_result = simulator.Simulate(record.content);
       if (sim_result.success &&
           sim_result.win_analysis.winner_idx == winner_idx) {
         gb_hand_str = sim_result.win_analysis.hand_string_for_gb;
+      }
+      if (sim_result.success && sim_result.starting_hands.count(winner_idx)) {
+        std::vector<int> sh = sim_result.starting_hands[winner_idx];
+        std::sort(sh.begin(), sh.end());
+        std::ostringstream ss;
+        for (size_t k = 0; k < sh.size(); ++k) {
+          ss << utils::Tile::ToString(sh[k]);
+        }
+        starting_hand_str = ss.str();
       }
     }
 
@@ -723,7 +736,8 @@ bool RunPlayerStats(const PlayerStatsOptions& options) {
             win_entry.hand_raw.clear();
           }
         }
-        win_entry.max_fans = max_fans;
+        win_entry.starting_hand_raw = starting_hand_str;
+        win_entry.max_fans          = max_fans;
         ps.wins.push_back(std::move(win_entry));
       } else {
         if (!is_self_drawn && flag_info.discarder == static_cast<int>(i)) {

@@ -116,12 +116,13 @@ void RecordSimulator::ProcessGameInfoAndSetup() {
 
   int dealer_idx = 0;
   state_.SetupWallAndDeal(wall_indices, dice, dealer_idx);
-
   LOG(INFO) << "Initial tiles dealt to all players";
+
+  starting_hands_.clear();
   for (int i = 0; i < 4; ++i) {
-    const auto& hand = state_.GetInitialHand(i);
-    LOG(INFO) << "  Player " << base::WIND[i]
-              << " initial hand size: " << hand.size();
+    starting_hands_[i] = state_.GetPlayerHand(i);
+    LOG(INFO) << "Captured initial P" << i
+              << " Hand: " << starting_hands_[i].size() << " tiles";
   }
 }
 

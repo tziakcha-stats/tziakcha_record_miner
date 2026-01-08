@@ -14,6 +14,7 @@ struct PlayerStatsOptions {
 };
 
 bool RunPlayerStats(const PlayerStatsOptions& options);
+void PrintPlayerStatsSummary(const std::string& output_dir);
 
 } // namespace stats
 } // namespace tziakcha

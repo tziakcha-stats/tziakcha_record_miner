@@ -99,6 +99,7 @@ int main(int argc, char* argv[]) {
 
     std::cout << "Player stats written under: " << ps_opts.output_dir
               << std::endl;
+    tziakcha::stats::PrintPlayerStatsSummary(ps_opts.output_dir);
     return 0;
   }
 

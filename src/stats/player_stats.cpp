@@ -6,12 +6,15 @@
 #include "storage/filesystem_storage.h"
 #include "utils/script_decoder.h"
 #include "analyzer/simulator.h"
+#include "calc/shanten_calculator.h"
 
 #include <algorithm>
 #include <array>
 #include <filesystem>
 #include <fstream>
+#include <iostream>
 #include <glog/logging.h>
+#include <iomanip>
 #include <limits>
 #include <nlohmann/json.hpp>
 #include <sstream>
@@ -65,6 +68,9 @@ struct PlayerStats {
   double total_session_seconds = 0.0;
   int sessions_recorded        = 0;
   int64_t total_steps          = 0;
+
+  int64_t total_starting_shanten = 0;
+  int starting_shanten_count     = 0;
 
   std::vector<EloPoint> elo_history;
   std::vector<std::string> processed_sessions;
@@ -384,8 +390,10 @@ PlayerStats FromJson(const json& j) {
     ps.total_session_seconds =
         static_cast<double>(stats_obj.value("total_session_ms", 0LL)) / 1000.0;
   }
-  ps.sessions_recorded = stats_obj.value("sessions_recorded", 0);
-  ps.total_steps       = stats_obj.value("total_steps", 0);
+  ps.sessions_recorded      = stats_obj.value("sessions_recorded", 0);
+  ps.total_steps            = stats_obj.value("total_steps", 0);
+  ps.total_starting_shanten = stats_obj.value("total_starting_shanten", 0LL);
+  ps.starting_shanten_count = stats_obj.value("starting_shanten_count", 0);
 
   if (j.contains("elo_history") && j["elo_history"].is_array()) {
     for (const auto& item : j["elo_history"]) {
@@ -466,6 +474,15 @@ json ToJson(const PlayerStats& ps) {
       ps.total_steps > 0
           ? ps.total_session_seconds / static_cast<double>(ps.total_steps)
           : 0.0;
+
+  stats_obj["avg_starting_shanten"] =
+      ps.starting_shanten_count > 0
+          ? static_cast<double>(ps.total_starting_shanten) /
+                static_cast<double>(ps.starting_shanten_count)
+          : 0.0;
+  stats_obj["total_starting_shanten"] = ps.total_starting_shanten;
+  stats_obj["starting_shanten_count"] = ps.starting_shanten_count;
+
   j["stats"] = stats_obj;
 
   j["elo_history"] = json::array();
@@ -583,13 +600,12 @@ bool RunPlayerStats(const PlayerStatsOptions& options) {
 
   int processed_records = 0;
   for (const auto& record : records) {
+    LOG(INFO) << "Processing record: " << record.record_id
+              << ", session: " << record.session_id;
     auto slots = ExtractPlayers(record.script_json);
     if (slots.empty()) {
       continue;
     }
-
-    auto durations   = ComputeActionDurations(record.raw_json);
-    auto step_counts = CountStepsByPlayer(record.raw_json);
 
     const json* player_e_src = nullptr;
     if (record.raw_json.contains(PlayerStatsConfig::kStep) &&
@@ -605,6 +621,9 @@ bool RunPlayerStats(const PlayerStatsOptions& options) {
       player_e_src = &record.script_json[PlayerStatsConfig::kScriptPlayers];
     }
 
+    auto durations   = ComputeActionDurations(record.raw_json);
+    auto step_counts = CountStepsByPlayer(record.raw_json);
+
     if (player_e_src) {
       const auto& sp = *player_e_src;
       for (size_t i = 0; i < sp.size() && i < slots.size(); ++i) {
@@ -615,6 +634,12 @@ bool RunPlayerStats(const PlayerStatsOptions& options) {
         auto& ps       = get_player(slots[i]);
         ps.current_elo = elo_val;
       }
+    }
+
+    // Ensure all players exist in the map to prevent reallocations invalidating
+    // pointers
+    for (const auto& slot : slots) {
+      get_player(slot);
     }
 
     std::vector<PlayerStats*> stats_ptrs;
@@ -649,6 +674,10 @@ bool RunPlayerStats(const PlayerStatsOptions& options) {
         (!is_draw &&
          (flag_info.discarder < 0 || flag_info.discarder == winner_idx));
 
+    // DEBUG LOG
+    LOG(INFO) << "Record " << record.record_id << ": winner_idx=" << winner_idx
+              << ", is_draw=" << is_draw << ", is_self_drawn=" << is_self_drawn;
+
     json win_data;
     if (!is_draw &&
         record.script_json.contains(PlayerStatsConfig::kScriptWins) &&
@@ -668,21 +697,48 @@ bool RunPlayerStats(const PlayerStatsOptions& options) {
     session.max_ts = std::max(session.max_ts, record.timestamp_ms);
     session.duration_ms += durations.record_ms;
 
+    analyzer::RecordSimulator simulator;
+    auto sim_result = simulator.Simulate(record.content);
+
     std::string gb_hand_str;
     std::string starting_hand_str;
-    if (!is_draw) {
-      analyzer::RecordSimulator simulator;
-      auto sim_result = simulator.Simulate(record.content);
-      if (sim_result.success &&
-          sim_result.win_analysis.winner_idx == winner_idx) {
+    if (sim_result.success) {
+      // Calculate Starting Shanten for all players
+      calc::ShantenCalculator shanten_calc;
+      for (size_t i = 0; i < slots.size(); ++i) {
+        if (sim_result.starting_hands.count(i)) {
+          const auto& raw_hand = sim_result.starting_hands[i];
+          mahjong::Handtiles hand_tiles;
+          for (int t : raw_hand) {
+            // Convert raw ID to gb-mahjong ID: (raw >> 2) + 1
+            // 0-3 -> 0 (1m) -> +1 -> 1
+            int tile_id = (t >> 2) + 1;
+            // Only include standard tiles (1-34). Ignore flowers/seasons.
+            if (tile_id > 0 && tile_id <= 34) {
+              hand_tiles.lipai.push_back(mahjong::Tile(tile_id));
+              hand_tiles.lipai_table[tile_id]++;
+            }
+          }
+
+          auto shanten_res = shanten_calc.Calculate(hand_tiles);
+          int shanten      = shanten_res.standard;
+
+          auto& ps = *stats_ptrs[i];
+          ps.total_starting_shanten += shanten;
+          ps.starting_shanten_count++;
+        }
+      }
+
+      if (!is_draw && sim_result.win_analysis.winner_idx == winner_idx) {
         gb_hand_str = sim_result.win_analysis.hand_string_for_gb;
       }
-      if (sim_result.success && sim_result.starting_hands.count(winner_idx)) {
+
+      if (!is_draw && sim_result.starting_hands.count(winner_idx)) {
         std::vector<int> sh = sim_result.starting_hands[winner_idx];
         std::sort(sh.begin(), sh.end());
         std::ostringstream ss;
         for (size_t k = 0; k < sh.size(); ++k) {
-          ss << utils::Tile::ToString(sh[k]);
+          ss << base::TILE_IDENTITY[sh[k] >> 2];
         }
         starting_hand_str = ss.str();
       }
@@ -714,6 +770,7 @@ bool RunPlayerStats(const PlayerStatsOptions& options) {
       }
 
       if (static_cast<int>(i) == winner_idx) {
+        LOG(INFO) << "Incrementing win stats for player " << i;
         ps.win_count++;
         if (is_self_drawn) {
           ps.tsumo_win_count++;
@@ -792,6 +849,94 @@ bool RunPlayerStats(const PlayerStatsOptions& options) {
             << ", players saved: " << saved;
 
   return true;
+}
+
+void PrintPlayerStatsSummary(const std::string& output_dir) {
+  if (!fs::exists(output_dir) || !fs::is_directory(output_dir)) {
+    return;
+  }
+
+  struct PlayerSummary {
+    std::string id;
+    std::string name;
+    double elo;
+    int rounds;
+    int wins;
+    double win_rate;
+    double avg_shanten;
+  };
+
+  std::vector<PlayerSummary> summaries;
+
+  for (const auto& entry : fs::directory_iterator(output_dir)) {
+    if (entry.path().extension() != ".json") {
+      continue;
+    }
+
+    std::ifstream ifs(entry.path());
+    if (!ifs.is_open()) {
+      continue;
+    }
+
+    try {
+      json j;
+      ifs >> j;
+
+      PlayerSummary s;
+      s.id          = j.value("player_id", "");
+      s.name        = j.value("name", "");
+      s.elo         = j.value("current_elo", 1500.0);
+      s.rounds      = 0;
+      s.wins        = 0;
+      s.avg_shanten = 0.0;
+
+      if (j.contains("stats") && j["stats"].is_object()) {
+        const auto& stats = j["stats"];
+        s.rounds          = stats.value("total_rounds", 0);
+        s.wins            = stats.value("win_count", 0);
+        s.avg_shanten     = stats.value("avg_starting_shanten", 0.0);
+      }
+
+      s.win_rate = (s.rounds > 0) ? (double)s.wins / s.rounds : 0.0;
+      summaries.push_back(s);
+    } catch (...) {
+      continue;
+    }
+  }
+
+  if (summaries.empty()) {
+    return;
+  }
+
+  // Sort by ELO descending
+  std::sort(summaries.begin(),
+            summaries.end(),
+            [](const PlayerSummary& a, const PlayerSummary& b) {
+              return a.elo > b.elo;
+            });
+
+  std::cout << "\n=== Player Stats Summary (Top 20 by ELO) ===\n";
+  std::cout << std::left << std::setw(12) << "ID" << std::setw(15) << "Name"
+            << std::right << std::setw(8) << "ELO" << std::setw(8) << "Rounds"
+            << std::setw(8) << "Wins" << std::setw(10) << "WinRate"
+            << std::setw(10) << "Shanten"
+            << "\n";
+  std::cout << std::string(71, '-') << "\n";
+
+  int count = 0;
+  for (const auto& s : summaries) {
+    std::cout << std::left << std::setw(12) << s.id.substr(0, 11)
+              << std::setw(15) << s.name.substr(0, 14) << std::right
+              << std::fixed << std::setprecision(1) << std::setw(8) << s.elo
+              << std::setw(8) << s.rounds << std::setw(8) << s.wins
+              << std::setprecision(1) << std::setw(9) << (s.win_rate * 100.0)
+              << "%" << std::setprecision(2) << std::setw(10) << s.avg_shanten
+              << "\n";
+    if (++count >= 20) {
+      break;
+    }
+  }
+  std::cout << std::endl;
 }
 
 } // namespace stats

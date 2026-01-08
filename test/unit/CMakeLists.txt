@@ -8,6 +8,7 @@ function(add_unit_test TEST_NAME)
     
     target_include_directories(${TEST_NAME} PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}/../../include
+        ${CMAKE_CURRENT_SOURCE_DIR}/../../third_party/GB-Mahjong
     )
     
     target_link_libraries(${TEST_NAME} PRIVATE
@@ -46,4 +47,16 @@ add_unit_test(shanten_test
 add_unit_test(starting_hand_test
     SOURCES starting_hand_test.cpp
     LINK_LIBRARIES analyzer
+)
+
+add_unit_test(player_stats_test
+    SOURCES 
+        player_stats_test.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/../../src/stats/player_stats.cpp
+    LINK_LIBRARIES 
+        analyzer
+        storage
+        utils
+        fan_calculator_core
+        glog::glog
 )

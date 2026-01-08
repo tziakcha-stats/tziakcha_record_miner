@@ -16,6 +16,8 @@ function(add_unit_test TEST_NAME)
         glog::glog
         ${TEST_LINK_LIBRARIES}
     )
+
+    target_compile_definitions(${TEST_NAME} PRIVATE TEST_ASSETS_DIR="${CMAKE_CURRENT_SOURCE_DIR}/assets")
     
     add_test(NAME ${TEST_NAME} COMMAND ${TEST_NAME})
     

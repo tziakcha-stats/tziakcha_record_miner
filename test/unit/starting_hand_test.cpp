@@ -16,10 +16,12 @@ protected:
 };
 
 TEST_F(StartingHandTest, CapturesStartingHandFromExampleRecord) {
-  // Use absolute path as requested for user environment
-  std::string file_path =
-      "/Users/choimoe/Code/tziakcha_record_miner/test/unit/"
-      "assets/example_record.json";
+#ifndef TEST_ASSETS_DIR
+  std::string file_path = "test/unit/assets/example_record.json";
+#else
+  std::string file_path = std::string(TEST_ASSETS_DIR) + "/example_record.json";
+#endif
+
   std::ifstream ifs(file_path);
   ASSERT_TRUE(ifs.is_open()) << "Failed to open " << file_path;
 

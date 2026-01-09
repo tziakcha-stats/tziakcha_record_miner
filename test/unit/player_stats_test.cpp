@@ -209,6 +209,16 @@ TEST_F(PlayerStatsTest, CalculatesBasicStatsAndShanten) {
   // Shanten Stats
   // P0 hand was all 1s (13 or 14 tiles).
   // 14 tiles of 1m: 1111 1111 1111 11.
+
+  // Aliases check
+  EXPECT_TRUE(j.contains("aliases"));
+  EXPECT_EQ(j["aliases"].size(), 1);
+  // Order in JSON array might vary if from hash set, but size 1 is
+  // deterministic
+  EXPECT_EQ(j["aliases"][0], "Player0");
+
+  // Processed records removal check
+  EXPECT_FALSE(j.contains("processed_records"));
   // This is technically invalid (max 4 per tile), but implementation doesn't
   // check count validity for tile existence. Shanten calculator should return
   // something. 14 tiles of same tile -> Quad? Standard shanten logic: 4 sets +
@@ -216,12 +226,15 @@ TEST_F(PlayerStatsTest, CalculatesBasicStatsAndShanten) {
   // hand (Chuuren Poutou? No, 11111.. is just sets). Win = -1 shanten.
 
   // Check if starting shanten statistic is present
-  EXPECT_TRUE(j["stats"].contains("avg_starting_shanten"));
-  EXPECT_TRUE(j["stats"].contains("starting_shanten_count"));
+  EXPECT_TRUE(j["stats"].contains("avg_starting_shanten_14"));
+  EXPECT_TRUE(j["stats"].contains("starting_shanten_count_14"));
 
-  EXPECT_EQ(j["stats"]["starting_shanten_count"], 1);
+  EXPECT_EQ(j["stats"]["starting_shanten_count_14"], 1);
   // avg shanten should be -1.0
-  EXPECT_DOUBLE_EQ(j["stats"]["avg_starting_shanten"], -1.0);
+  EXPECT_DOUBLE_EQ(j["stats"]["avg_starting_shanten_14"], -1.0);
+
+  // 13-tile stats should be 0
+  EXPECT_EQ(j["stats"].value("starting_shanten_count_13", 0), 0);
 }
 
 TEST_F(PlayerStatsTest, CalculatesRonAndDealInStats) {

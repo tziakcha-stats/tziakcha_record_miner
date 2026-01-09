@@ -8,6 +8,7 @@
 #include "utils/script_decoder.h"
 #include "analyzer/simulator.h"
 #include "calc/shanten_calculator.h"
+#include "utils/gb_format_converter.h"
 
 #include <algorithm>
 #include <array>
@@ -31,7 +32,6 @@ namespace tziakcha {
 namespace stats {
 
 struct EloPoint {
-  std::string record_id;
   std::string session_id;
   int64_t timestamp_ms = 0;
   double value         = 1500.0;
@@ -57,6 +57,7 @@ struct WinEntry {
 struct PlayerStats {
   std::string player_id;
   std::string name;
+  std::unordered_set<std::string> aliases; // Track all names used
   double current_elo  = 1500.0;
   int64_t last_elo_ts = 0;
 
@@ -71,16 +72,19 @@ struct PlayerStats {
   int sessions_recorded        = 0;
   int64_t total_steps          = 0;
 
-  int64_t total_starting_shanten = 0;
-  int starting_shanten_count     = 0;
+  // 13 tiles for dealing w/o next draw (or non-dealer start)
+  int64_t total_starting_shanten_13 = 0;
+  int starting_shanten_count_13     = 0;
+
+  // 14 tiles for dealer start
+  int64_t total_starting_shanten_14 = 0;
+  int starting_shanten_count_14     = 0;
 
   std::vector<EloPoint> elo_history;
   std::vector<std::string> processed_sessions;
-  std::vector<std::string> processed_records;
   std::vector<WinEntry> wins;
 
   std::unordered_set<std::string> processed_session_set;
-  std::unordered_set<std::string> processed_record_set;
 };
 
 struct PlayerSlot {
@@ -366,8 +370,7 @@ json ToJson(const WinEntry& w) {
 }
 
 json ToJson(const EloPoint& e) {
-  return json{{"record_id", e.record_id},
-              {"session_id", e.session_id},
+  return json{{"session_id", e.session_id},
               {"timestamp_ms", e.timestamp_ms},
               {"elo", e.value}};
 }
@@ -393,15 +396,28 @@ PlayerStats FromJson(const json& j) {
     ps.total_session_seconds =
         static_cast<double>(stats_obj.value("total_session_ms", 0LL)) / 1000.0;
   }
-  ps.sessions_recorded      = stats_obj.value("sessions_recorded", 0);
-  ps.total_steps            = stats_obj.value("total_steps", 0);
-  ps.total_starting_shanten = stats_obj.value("total_starting_shanten", 0LL);
-  ps.starting_shanten_count = stats_obj.value("starting_shanten_count", 0);
+  ps.sessions_recorded = stats_obj.value("sessions_recorded", 0);
+  ps.total_steps       = stats_obj.value("total_steps", 0);
+  ps.total_starting_shanten_13 =
+      stats_obj.value("total_starting_shanten_13", 0LL);
+  ps.starting_shanten_count_13 =
+      stats_obj.value("starting_shanten_count_13", 0);
+  ps.total_starting_shanten_14 =
+      stats_obj.value("total_starting_shanten_14", 0LL);
+  ps.starting_shanten_count_14 =
+      stats_obj.value("starting_shanten_count_14", 0);
+
+  if (j.contains("aliases") && j["aliases"].is_array()) {
+    for (const auto& a : j["aliases"]) {
+      if (a.is_string()) {
+        ps.aliases.insert(a.get<std::string>());
+      }
+    }
+  }
 
   if (j.contains("elo_history") && j["elo_history"].is_array()) {
     for (const auto& item : j["elo_history"]) {
       EloPoint ep;
-      ep.record_id    = item.value("record_id", "");
       ep.session_id   = item.value("session_id", "");
       ep.timestamp_ms = item.value("timestamp_ms", 0LL);
       ep.value        = item.value("elo", 1500.0);
@@ -415,16 +431,6 @@ PlayerStats FromJson(const json& j) {
         auto val = s.get<std::string>();
         ps.processed_sessions.push_back(val);
         ps.processed_session_set.insert(val);
-      }
-    }
-  }
-
-  if (j.contains("processed_records") && j["processed_records"].is_array()) {
-    for (const auto& r : j["processed_records"]) {
-      if (r.is_string()) {
-        auto val = r.get<std::string>();
-        ps.processed_records.push_back(val);
-        ps.processed_record_set.insert(val);
       }
     }
   }
@@ -481,7 +487,8 @@ struct RecordProcessingResult {
   std::vector<FanSummary> max_fans;
 
   // Shanten
-  std::map<int, int> starting_shantens; // seat_idx -> shanten
+  std::map<int, std::pair<int, int>>
+      starting_shantens; // seat_idx -> {shanten, tile_count}
 };
 
 RecordProcessingResult ProcessRecord(const RecordMeta& meta) {
@@ -586,6 +593,18 @@ RecordProcessingResult ProcessRecord(const RecordMeta& meta) {
 
   if (sim_result.success) {
     calc::ShantenCalculator shanten_calc;
+
+    // Determine round wind
+    char round_wind = 'E'; // Default
+    if (script_json.contains("i") && script_json["i"].is_number_integer()) {
+      int g_i            = script_json["i"].get<int>();
+      int r_idx          = (g_i / 4) % 4;
+      const char winds[] = {'E', 'S', 'W', 'N'};
+      if (r_idx >= 0 && r_idx < 4)
+        round_wind = winds[r_idx];
+    }
+
+    // Calculate shantens
     for (size_t i = 0; i < result.slots.size(); ++i) {
       if (sim_result.starting_hands.count(i)) {
         const auto& raw_hand = sim_result.starting_hands[i];
@@ -598,7 +617,8 @@ RecordProcessingResult ProcessRecord(const RecordMeta& meta) {
           }
         }
         auto shanten_res            = shanten_calc.Calculate(hand_tiles);
-        result.starting_shantens[i] = shanten_res.standard;
+        result.starting_shantens[i] = {
+            shanten_res.standard, (int)raw_hand.size()};
       }
     }
 
@@ -608,13 +628,35 @@ RecordProcessingResult ProcessRecord(const RecordMeta& meta) {
     }
 
     if (!result.is_draw && sim_result.starting_hands.count(result.winner_idx)) {
-      std::vector<int> sh = sim_result.starting_hands[result.winner_idx];
-      std::sort(sh.begin(), sh.end());
-      std::ostringstream ss;
-      for (size_t k = 0; k < sh.size(); ++k) {
-        ss << base::TILE_IDENTITY[sh[k] >> 2];
-      }
-      result.starting_hand_raw = ss.str();
+      int w_idx            = result.winner_idx;
+      const auto& raw_hand = sim_result.starting_hands[w_idx];
+
+      // Convert to logic tiles for formatter
+      std::vector<int> logic_hand =
+          raw_hand; // raw_hand is already in valid range for formatter?
+      // Simulator returns raw integers (0-135). GBFormatConverter expects raw
+      // integers.
+
+      const char winds[] = {'E', 'S', 'W', 'N'};
+      char seat_wind     = winds[w_idx % 4];
+
+      std::vector<std::vector<int>> empty_packs;
+      std::vector<int> empty_dirs;
+      std::vector<int> empty_flowers;
+
+      result.starting_hand_raw = utils::GBFormatConverter::BuildFullGBString(
+          logic_hand,
+          empty_packs,
+          empty_dirs,
+          -1, // win_tile
+          round_wind,
+          seat_wind,
+          false, // self_drawn
+          false, // last_copy
+          false, // sea_last
+          false, // rob_kong
+          0,     // flower info
+          empty_flowers);
     }
   }
 
@@ -628,6 +670,11 @@ json ToJson(const PlayerStats& ps) {
   j["name"]        = ps.name;
   j["current_elo"] = ps.current_elo;
   j["last_elo_ts"] = ps.last_elo_ts;
+
+  j["aliases"] = json::array();
+  for (const auto& a : ps.aliases) {
+    j["aliases"].push_back(a);
+  }
 
   json stats_obj;
   stats_obj["total_rounds"]          = ps.total_rounds;
@@ -645,13 +692,21 @@ json ToJson(const PlayerStats& ps) {
           ? ps.total_session_seconds / static_cast<double>(ps.total_steps)
           : 0.0;
 
-  stats_obj["avg_starting_shanten"] =
-      ps.starting_shanten_count > 0
-          ? static_cast<double>(ps.total_starting_shanten) /
-                static_cast<double>(ps.starting_shanten_count)
+  stats_obj["avg_starting_shanten_13"] =
+      ps.starting_shanten_count_13 > 0
+          ? static_cast<double>(ps.total_starting_shanten_13) /
+                static_cast<double>(ps.starting_shanten_count_13)
           : 0.0;
-  stats_obj["total_starting_shanten"] = ps.total_starting_shanten;
-  stats_obj["starting_shanten_count"] = ps.starting_shanten_count;
+  stats_obj["total_starting_shanten_13"] = ps.total_starting_shanten_13;
+  stats_obj["starting_shanten_count_13"] = ps.starting_shanten_count_13;
+
+  stats_obj["avg_starting_shanten_14"] =
+      ps.starting_shanten_count_14 > 0
+          ? static_cast<double>(ps.total_starting_shanten_14) /
+                static_cast<double>(ps.starting_shanten_count_14)
+          : 0.0;
+  stats_obj["total_starting_shanten_14"] = ps.total_starting_shanten_14;
+  stats_obj["starting_shanten_count_14"] = ps.starting_shanten_count_14;
 
   j["stats"] = stats_obj;
 
@@ -661,7 +716,6 @@ json ToJson(const PlayerStats& ps) {
   }
 
   j["processed_sessions"] = ps.processed_sessions;
-  j["processed_records"]  = ps.processed_records;
 
   j["wins"] = json::array();
   for (const auto& w : ps.wins) {
@@ -824,25 +878,26 @@ bool RunPlayerStats(const PlayerStatsOptions& options) {
     for (const auto& slot : res.slots) {
       PlayerStats& ps = get_player(slot);
       stats_ptrs.push_back(&ps);
-      if (ps.processed_record_set.count(res.record_id))
+      if (ps.processed_session_set.count(res.session_id)) {
         any_processed = true;
-      else
+      } else {
         all_processed = false;
+      }
     }
 
     if (any_processed) {
-      if (!all_processed) {
-        LOG(WARNING) << "Partial process skip: " << res.record_id;
-      }
       continue;
     }
 
     // Update Stats
     for (size_t i = 0; i < res.slots.size(); ++i) {
       auto& ps = *stats_ptrs[i];
+      if (!res.slots[i].name.empty()) {
+        ps.aliases.insert(res.slots[i].name);
+      }
+
       ps.total_rounds++;
-      ps.processed_record_set.insert(res.record_id);
-      ps.processed_records.push_back(res.record_id);
+      // Removed processed_records insertion
 
       int64_t p_steps =
           ((int)i < (int)res.step_counts.size()) ? res.step_counts[i] : 0;
@@ -856,8 +911,14 @@ bool RunPlayerStats(const PlayerStatsOptions& options) {
 
       // Shanten
       if (res.starting_shantens.count(i)) {
-        ps.total_starting_shanten += res.starting_shantens.at(i);
-        ps.starting_shanten_count++;
+        auto [val, count] = res.starting_shantens.at(i);
+        if (count == 13) {
+          ps.total_starting_shanten_13 += val;
+          ps.starting_shanten_count_13++;
+        } else if (count == 14) {
+          ps.total_starting_shanten_14 += val;
+          ps.starting_shanten_count_14++;
+        }
       }
 
       if (res.is_draw) {
@@ -892,15 +953,30 @@ bool RunPlayerStats(const PlayerStatsOptions& options) {
       }
     }
 
-    // ELO History
+    // ELO History (Per Session)
     for (size_t i = 0; i < res.slots.size(); ++i) {
       auto* ps = stats_ptrs[i];
-      EloPoint ep;
-      ep.record_id    = res.record_id;
-      ep.session_id   = res.session_id;
-      ep.timestamp_ms = res.timestamp_ms;
-      ep.value        = ps->current_elo;
-      ps->elo_history.push_back(ep);
+
+      bool update_needed = false;
+      if (ps->elo_history.empty()) {
+        update_needed = true;
+      } else {
+        auto& last = ps->elo_history.back();
+        if (last.session_id != res.session_id) {
+          update_needed = true;
+        } else {
+          last.timestamp_ms = res.timestamp_ms;
+          last.value        = ps->current_elo;
+        }
+      }
+
+      if (update_needed) {
+        EloPoint ep;
+        ep.session_id   = res.session_id;
+        ep.timestamp_ms = res.timestamp_ms;
+        ep.value        = ps->current_elo;
+        ps->elo_history.push_back(ep);
+      }
     }
   }
 
@@ -1000,7 +1076,8 @@ void PrintPlayerStatsSummary(const std::string& output_dir) {
   std::cout << std::left << std::setw(12) << "ID" << std::setw(15) << "Name"
             << std::right << std::setw(8) << "ELO" << std::setw(8) << "Rounds"
             << std::setw(8) << "Wins" << std::setw(10) << "WinRate"
-            << std::setw(10) << "Shanten" << "\n";
+            << std::setw(10) << "Shanten"
+            << "\n";
   std::cout << std::string(71, '-') << "\n";
 
   int count = 0;

@@ -52,7 +52,7 @@ if [[ ! -d "${players_dir}" ]]; then
 fi
 
 mkdir -p "${rank_dir}"
-output_file="${rank_dir}/rate_${rate_type}.txt"
+output_file="${rank_dir}/rate_${rate_type}.csv"
 
 temp_file=$(mktemp)
 trap 'rm -f "${temp_file}"' EXIT
@@ -73,7 +73,7 @@ find "${players_dir}" -name '*.json' -type f | while read -r file; do
          null
        end) as $val |
       if $val != null then
-        "\($val)\t\(.name // "")\t\($s.total_rounds // 0)"
+        [$val, (.name // ""), (.player_id // ""), ($s.total_rounds // 0)] | @csv
       else
         empty
       end
@@ -87,28 +87,20 @@ fi
 
 {
   case "${rate_type}" in
-    win_rate)           title="Win Rate (和牌率) = win_count / total_rounds" ;;
-    tsumo_rate)         title="Tsumo Rate (自摸率) = tsumo_win_count / win_count" ;;
-    deal_in_rate)       title="Deal-in Rate (放铳率) = deal_in_count / total_rounds" ;;
-    tsumo_against_rate) title="Tsumo-against Rate (被摸率) = tsumo_against_count / total_rounds" ;;
-    *)                  title="Rate Ranking: ${rate_type}" ;;
+    win_rate)           title="Win Rate" ;;
+    tsumo_rate)         title="Tsumo Rate" ;;
+    deal_in_rate)       title="Deal-in Rate" ;;
+    tsumo_against_rate) title="Tsumo-against Rate" ;;
+    *)                  title="${rate_type}" ;;
   esac
 
-  echo "======================================"
-  echo "${title}"
-  echo "Generated at: $(date '+%Y-%m-%d %H:%M:%S')"
-  echo "Total players: $(wc -l < "${temp_file}")"
-  echo "======================================"
-  echo ""
-  printf "%-6s\t%-12s\t%-25s\t%s\n" "Rank" "Rate" "Player Name" "Rounds"
-  echo "------------------------------------------------------------"
+  echo "Rank,Rate,Player Name,Player ID,Rounds"
   
   rank=1
   # Sort numerically descending
-  sort -rn "${temp_file}" | while IFS=$'\t' read -r value name rounds filepath; do
-    # Convert to percentage for display
-    percentage=$(awk "BEGIN {printf \"%.2f%%\", $value * 100}")
-    printf "%-6d\t%-12s\t%-25s\t%s\n" "$rank" "$percentage" "$name" "$rounds"
+  sort -t, -k1,1rn "${temp_file}" | while read -r line; do
+    # Output raw rate values
+    echo "${rank},${line}"
     ((rank++))
   done
 } > "${output_file}"

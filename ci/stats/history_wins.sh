@@ -46,7 +46,7 @@ fi
 
 mkdir -p "${rank_dir}"
 
-output_file="${rank_dir}/history_win.txt"
+output_file="${rank_dir}/history_win.csv"
 
 temp_file=$(mktemp)
 trap 'rm -f "${temp_file}"' EXIT
@@ -55,9 +55,13 @@ trap 'rm -f "${temp_file}"' EXIT
 find "${players_dir}" -name '*.json' -type f -print0 |
   xargs -0 -n1 bash -c '
     file="$1"
-    player_name=$(jq -r ".name // .player_id // \"Unknown\"" "$file")
     
-    jq -r --arg name "$player_name" ".wins[]? | [.total_fan, .hand_raw, (.starting_hand_raw // \"\"), (.max_fans | map(.name) | join(\"、\")), .win_type, \$name, .record_id] | @tsv" "$file" 2>/dev/null || true
+    jq -r '\''
+      (.name // .player_id // "Unknown") as $pname | 
+      (.player_id // "") as $pid |
+      .wins[]? | 
+      [.total_fan, .hand_raw, (.starting_hand_raw // ""), (.max_fans | map(.name) | join("、")), .win_type, $pname, $pid, .record_id] | @csv
+    '\'' "$file" 2>/dev/null || true
   ' _ >"${temp_file}"
 
 if [[ ! -s "${temp_file}" ]]; then
@@ -67,17 +71,19 @@ fi
 
 # Sort by total_fan (descending) and take top k
 {
-  echo "======================================"
-  echo "Top ${top_k} Wins by Fan Count"
-  echo "Generated at: $(date '+%Y-%m-%d %H:%M:%S')"
-  echo "======================================"
-  echo ""
-  printf "%-5s\t%-6s\t%-60s\t%-60s\t%-40s\t%-8s\t%-20s\t%-12s\n" "Rank" "Fan" "Hand" "Starting Hand" "Fan Types" "Win Type" "Player" "Record"
-  echo "--------------------------------------"
+  echo "Rank,Fan,Hand,Starting Hand,Fan Types,Win Type,Player,Player ID,Record"
   
   rank=1
-  sort -rn "${temp_file}" 2>/dev/null | head -n "${top_k}" 2>/dev/null | while IFS=$'\t' read -r fan_count hand_raw starting_hand fan_types win_type player_name record_id; do
-    printf "%-5d\t%-6s\t%-60s\t%-60s\t%-40s\t%-8s\t%-20s\t%-12s\n" "$rank" "$fan_count" "$hand_raw" "$starting_hand" "$fan_types" "$win_type" "$player_name" "$record_id"
+  # Sort by numeric value of the first column (Fan), descending.
+  # Since it's CSV, we can use -t, -k1nr to sort by the first comma-separated field numerically reverse.
+  # But the jq output puts quotes around strings, and @csv might quote numbers too depending on jq version, though usually not.
+  # Let's inspect jq @csv output: 88,"hand","start","types","ron","name","id"
+  # sort -t, -k1nr should work if the first field is a number.
+  # Adjust sort command to handle CSV. Or rely on raw sort if numbers are simpler.
+  # Actually, let's keep it simple: sort -t, -k1,1nr
+  
+  sort -t, -k1,1nr "${temp_file}" 2>/dev/null | head -n "${top_k}" 2>/dev/null | while read -r line; do
+    echo "${rank},${line}"
     ((rank++))
   done || true
 } > "${output_file}"

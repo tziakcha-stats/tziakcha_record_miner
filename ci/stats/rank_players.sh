@@ -8,7 +8,7 @@ rank_dir="${root_dir}/data/rank"
 
 keyword=""
 
-debug_mode=true
+debug_mode=false
 
 while getopts "p:r:hd" opt; do
   case "$opt" in
@@ -75,7 +75,7 @@ fi
 mkdir -p "${rank_dir}"
 
 safe_keyword="${keyword//\./_}"
-output_file="${rank_dir}/${safe_keyword}.txt"
+output_file="${rank_dir}/${safe_keyword}.csv"
 
 temp_file=$(mktemp)
 trap 'rm -f "${temp_file}"' EXIT
@@ -87,7 +87,7 @@ find "${players_dir}" -name '*.json' -type f -print0 |
     jq -r --arg key "$keyword" "
       getpath(\$key | split(\".\")) as \$val |
       select(\$val != null) |
-      \"\(\$val)\t\(.name // \"\")\t\(.stats.total_rounds // 0)\t\(input_filename)\"
+      [\$val, (.name // \"\"), (.stats.total_rounds // 0), (.player_id // \"\")] | @csv
     " "$file" || true
   ' _ "${keyword}" >"${temp_file}"
 
@@ -97,20 +97,12 @@ if [[ ! -s "${temp_file}" ]]; then
 fi
 
 {
-  echo "======================================"
-  echo "Ranking by: ${keyword}"
-  echo "Generated at: $(date '+%Y-%m-%d %H:%M:%S')"
-  echo "Total players: $(wc -l < "${temp_file}")"
-  echo "======================================"
-  echo ""
-  printf "%-6s\t%-12s\t%-25s\t%s\n" "Rank" "Value" "Player Name" "Rounds"
-  echo "------------------------------------------------------------"
+  echo "Rank,Value,Player Name,Rounds,Player ID"
   
   rank=1
-  # Sort numerically descending for most stats; use -r if needed. 
-  # For now keeping sort -n and adding -r if higher is usually better for mahjong rankings.
-  sort -rn "${temp_file}" | while IFS=$'\t' read -r value name rounds filepath; do
-    printf "%-6d\t%-12s\t%-25s\t%s\n" "$rank" "$value" "$name" "$rounds"
+  # Sort numerically descending for most stats
+  sort -t, -k1,1nr "${temp_file}" | while read -r line; do
+    echo "${rank},${line}"
     ((rank++))
   done
 } > "${output_file}"

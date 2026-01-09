@@ -57,7 +57,8 @@ struct WinEntry {
 struct PlayerStats {
   std::string player_id;
   std::string name;
-  double current_elo = 1500.0;
+  double current_elo  = 1500.0;
+  int64_t last_elo_ts = 0;
 
   int total_rounds             = 0;
   int win_count                = 0;
@@ -376,6 +377,7 @@ PlayerStats FromJson(const json& j) {
   ps.player_id   = j.value("player_id", "");
   ps.name        = j.value("name", "");
   ps.current_elo = j.value("current_elo", 1500.0);
+  ps.last_elo_ts = j.value("last_elo_ts", 0LL);
 
   const auto& stats_obj    = j.value("stats", json::object());
   ps.total_rounds          = stats_obj.value("total_rounds", 0);
@@ -625,6 +627,7 @@ json ToJson(const PlayerStats& ps) {
   j["player_id"]   = ps.player_id;
   j["name"]        = ps.name;
   j["current_elo"] = ps.current_elo;
+  j["last_elo_ts"] = ps.last_elo_ts;
 
   json stats_obj;
   stats_obj["total_rounds"]          = ps.total_rounds;
@@ -803,7 +806,11 @@ bool RunPlayerStats(const PlayerStatsOptions& options) {
     // Apply ELOs
     for (const auto& [i, elo] : res.player_elos) {
       if (i < (int)res.slots.size()) {
-        get_player(res.slots[i]).current_elo = elo;
+        auto& ps = get_player(res.slots[i]);
+        if (res.timestamp_ms >= ps.last_elo_ts) {
+          ps.current_elo = elo;
+          ps.last_elo_ts = res.timestamp_ms;
+        }
       }
     }
 

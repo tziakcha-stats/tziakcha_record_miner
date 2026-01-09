@@ -37,6 +37,12 @@ struct EloPoint {
   double value         = 1500.0;
 };
 
+struct AliasInfo {
+  std::string name;
+  int64_t first_seen_ts = 0;
+  int64_t last_seen_ts  = 0;
+};
+
 struct FanSummary {
   std::string name;
   int points = 0;
@@ -57,7 +63,7 @@ struct WinEntry {
 struct PlayerStats {
   std::string player_id;
   std::string name;
-  std::unordered_set<std::string> aliases; // Track all names used
+  std::vector<AliasInfo> alias_history; // Track name history with timestamps
   double current_elo  = 1500.0;
   int64_t last_elo_ts = 0;
 
@@ -75,10 +81,12 @@ struct PlayerStats {
   // 13 tiles for dealing w/o next draw (or non-dealer start)
   int64_t total_starting_shanten_13 = 0;
   int starting_shanten_count_13     = 0;
+  std::map<int, int> shanten_distribution_13;
 
   // 14 tiles for dealer start
   int64_t total_starting_shanten_14 = 0;
   int starting_shanten_count_14     = 0;
+  std::map<int, int> shanten_distribution_14;
 
   std::vector<EloPoint> elo_history;
   std::vector<std::string> processed_sessions;
@@ -407,10 +415,36 @@ PlayerStats FromJson(const json& j) {
   ps.starting_shanten_count_14 =
       stats_obj.value("starting_shanten_count_14", 0);
 
-  if (j.contains("aliases") && j["aliases"].is_array()) {
-    for (const auto& a : j["aliases"]) {
-      if (a.is_string()) {
-        ps.aliases.insert(a.get<std::string>());
+  if (j.contains("alias_history") && j["alias_history"].is_array()) {
+    for (const auto& item : j["alias_history"]) {
+      if (item.contains("name")) {
+        AliasInfo ai;
+        ai.name          = item.value("name", "");
+        ai.first_seen_ts = item.value("first_seen_ts", 0LL);
+        ai.last_seen_ts  = item.value("last_seen_ts", 0LL);
+        ps.alias_history.push_back(ai);
+      }
+    }
+  }
+
+  if (j.contains("stats")) {
+    const auto& stats = j["stats"];
+    if (stats.contains("shanten_distribution_13") &&
+        stats["shanten_distribution_13"].is_object()) {
+      for (const auto& [k, v] : stats["shanten_distribution_13"].items()) {
+        try {
+          ps.shanten_distribution_13[std::stoi(k)] = v.get<int>();
+        } catch (...) {
+        }
+      }
+    }
+    if (stats.contains("shanten_distribution_14") &&
+        stats["shanten_distribution_14"].is_object()) {
+      for (const auto& [k, v] : stats["shanten_distribution_14"].items()) {
+        try {
+          ps.shanten_distribution_14[std::stoi(k)] = v.get<int>();
+        } catch (...) {
+        }
       }
     }
   }
@@ -671,9 +705,12 @@ json ToJson(const PlayerStats& ps) {
   j["current_elo"] = ps.current_elo;
   j["last_elo_ts"] = ps.last_elo_ts;
 
-  j["aliases"] = json::array();
-  for (const auto& a : ps.aliases) {
-    j["aliases"].push_back(a);
+  j["alias_history"] = json::array();
+  for (const auto& ah : ps.alias_history) {
+    j["alias_history"].push_back(
+        {{"name", ah.name},
+         {"first_seen_ts", ah.first_seen_ts},
+         {"last_seen_ts", ah.last_seen_ts}});
   }
 
   json stats_obj;
@@ -707,6 +744,18 @@ json ToJson(const PlayerStats& ps) {
           : 0.0;
   stats_obj["total_starting_shanten_14"] = ps.total_starting_shanten_14;
   stats_obj["starting_shanten_count_14"] = ps.starting_shanten_count_14;
+
+  json start_13_dist = json::object();
+  for (const auto& [k, v] : ps.shanten_distribution_13) {
+    start_13_dist[std::to_string(k)] = v;
+  }
+  stats_obj["shanten_distribution_13"] = start_13_dist;
+
+  json start_14_dist = json::object();
+  for (const auto& [k, v] : ps.shanten_distribution_14) {
+    start_14_dist[std::to_string(k)] = v;
+  }
+  stats_obj["shanten_distribution_14"] = start_14_dist;
 
   j["stats"] = stats_obj;
 
@@ -893,7 +942,21 @@ bool RunPlayerStats(const PlayerStatsOptions& options) {
     for (size_t i = 0; i < res.slots.size(); ++i) {
       auto& ps = *stats_ptrs[i];
       if (!res.slots[i].name.empty()) {
-        ps.aliases.insert(res.slots[i].name);
+        std::string current_name = res.slots[i].name;
+        // Update alias history
+        bool found = false;
+        for (auto& ah : ps.alias_history) {
+          if (ah.name == current_name) {
+            ah.first_seen_ts = std::min(ah.first_seen_ts, res.timestamp_ms);
+            ah.last_seen_ts  = std::max(ah.last_seen_ts, res.timestamp_ms);
+            found            = true;
+            break;
+          }
+        }
+        if (!found) {
+          ps.alias_history.push_back(
+              {current_name, res.timestamp_ms, res.timestamp_ms});
+        }
       }
 
       ps.total_rounds++;
@@ -915,9 +978,11 @@ bool RunPlayerStats(const PlayerStatsOptions& options) {
         if (count == 13) {
           ps.total_starting_shanten_13 += val;
           ps.starting_shanten_count_13++;
+          ps.shanten_distribution_13[val]++;
         } else if (count == 14) {
           ps.total_starting_shanten_14 += val;
           ps.starting_shanten_count_14++;
+          ps.shanten_distribution_14[val]++;
         }
       }
 

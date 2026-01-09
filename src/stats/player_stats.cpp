@@ -1000,8 +1000,7 @@ void PrintPlayerStatsSummary(const std::string& output_dir) {
   std::cout << std::left << std::setw(12) << "ID" << std::setw(15) << "Name"
             << std::right << std::setw(8) << "ELO" << std::setw(8) << "Rounds"
             << std::setw(8) << "Wins" << std::setw(10) << "WinRate"
-            << std::setw(10) << "Shanten"
-            << "\n";
+            << std::setw(10) << "Shanten" << "\n";
   std::cout << std::string(71, '-') << "\n";
 
   int count = 0;

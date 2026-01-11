@@ -1,4 +1,5 @@
 site_name: tziakcha_record_miner
+site_url: https://miner.choimoe.com
 theme:
   name: material
 
@@ -13,10 +14,10 @@ markdown_extensions:
   - pymdownx.superfences
 
 nav:
-  - Home: index.md
-  - Analyzer: analyzer/analyzer_cli.md
-  - Base: 
-      - Record: base/record.md
-      - Constants: base/tziakcha_constants.md
-  - Calc: calc/calc_cli.md
-  - Fetcher: fetcher/fetcher_cli.md
+  - 首页: index.md
+  - 牌谱分析: analyzer/analyzer_cli.md
+  - 通用:
+      - 雀渣牌谱记录: base/record.md
+      - 雀渣常量: base/tziakcha_constants.md
+  - 计算工具: calc/calc_cli.md
+  - 爬虫工具: fetcher/fetcher_cli.md

@@ -9,7 +9,7 @@
 本项目包含三个核心模块，分别对应数据链路中的不同环节：获取、分析与计算。
 
 完整的说明文档已部署至 GitHub Pages，请访问：
-👉 **[tziakcha_record_miner 文档](https://tziakcha-stats.github.io/tziakcha_record_miner/)**
+👉 **[tziakcha_record_miner 文档](https://miner.choimoe.com/)**
 
 ## 核心模块
 

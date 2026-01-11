@@ -14,7 +14,9 @@ markdown_extensions:
 
 nav:
   - Home: index.md
-  - Analyzer: analyzer/
-  - Base: base/
-  - Calc: calc/
-  - Fetcher: fetcher/
+  - Analyzer: analyzer/analyzer_cli.md
+  - Base: 
+      - Record: base/record.md
+      - Constants: base/tziakcha_constants.md
+  - Calc: calc/calc_cli.md
+  - Fetcher: fetcher/fetcher_cli.md

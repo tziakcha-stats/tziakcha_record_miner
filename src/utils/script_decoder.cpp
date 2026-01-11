@@ -51,6 +51,10 @@ bool DecodeScriptToJson(const std::string& encoded, json& out) {
 
     inflateEnd(&stream);
 
+    decompressed.erase(
+        std::remove(decompressed.begin(), decompressed.end(), '\0'),
+        decompressed.end());
+
     std::string decompressed_str(decompressed.begin(), decompressed.end());
     out = json::parse(decompressed_str);
     return true;

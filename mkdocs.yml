@@ -19,5 +19,6 @@ nav:
   - 通用:
       - 雀渣牌谱记录: base/record.md
       - 雀渣常量: base/tziakcha_constants.md
+      - CHAGA API: base/chaga.md
   - 计算工具: calc/calc_cli.md
   - 爬虫工具: fetcher/fetcher_cli.md

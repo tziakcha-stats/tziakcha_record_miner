@@ -6,7 +6,7 @@ on:
       - main
     paths:
       - 'README.md'
-      - 'doc/**'
+      - 'docs/**'
       - '.github/workflows/deploy-pages.yml'
   workflow_dispatch:
 

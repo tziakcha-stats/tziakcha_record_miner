@@ -8,7 +8,7 @@
 #include <filesystem>
 
 namespace fs = std::filesystem;
-using json = nlohmann::json;
+using json   = nlohmann::json;
 
 std::string ReadFile(const std::string& filepath) {
   std::ifstream file(filepath);
@@ -185,7 +185,7 @@ int CmdAnalyze(int argc, char* argv[]) {
         json player_packs = json::array();
         for (size_t j = 0; j < snap.packs[i].size(); ++j) {
           json pack_obj;
-          pack_obj["tile_ids"] = snap.packs[i][j];
+          pack_obj["tile_ids"]  = snap.packs[i][j];
           pack_obj["direction"] = snap.pack_directions[i][j];
           player_packs.push_back(pack_obj);
         }

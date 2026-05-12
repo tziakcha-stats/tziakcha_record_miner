@@ -70,10 +70,12 @@ SimulationResult RecordSimulator::Simulate(const std::string& record_json_str) {
     // Capture final game state snapshot for cross-validation
     for (int i = 0; i < 4; ++i) {
       result.game_state_snapshot.final_hands[i] = state_.GetPlayerHand(i);
-      result.game_state_snapshot.packs[i] = state_.GetPlayerPacks(i);
-      result.game_state_snapshot.pack_directions[i] = state_.GetPlayerPackDirections(i);
+      result.game_state_snapshot.packs[i]       = state_.GetPlayerPacks(i);
+      result.game_state_snapshot.pack_directions[i] =
+          state_.GetPlayerPackDirections(i);
       result.game_state_snapshot.discards[i] = state_.GetPlayerDiscards(i);
-      result.game_state_snapshot.flower_tiles[i] = state_.GetPlayerFlowerTiles(i);
+      result.game_state_snapshot.flower_tiles[i] =
+          state_.GetPlayerFlowerTiles(i);
       result.game_state_snapshot.flower_counts[i] = state_.GetFlowerCount(i);
     }
 

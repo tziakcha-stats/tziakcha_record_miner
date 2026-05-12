@@ -5,6 +5,7 @@
 #include "analyzer/game_state.h"
 #include "analyzer/record_parser.h"
 #include "analyzer/win_analyzer.h"
+#include <array>
 #include <functional>
 #include <nlohmann/json.hpp>
 #include <string>
@@ -17,12 +18,22 @@ using json = nlohmann::json;
 namespace tziakcha {
 namespace analyzer {
 
+struct GameStateSnapshot {
+  std::array<std::vector<int>, 4> final_hands;
+  std::array<std::vector<std::vector<int>>, 4> packs;
+  std::array<std::vector<int>, 4> pack_directions;
+  std::array<std::vector<int>, 4> discards;
+  std::array<std::vector<int>, 4> flower_tiles;
+  std::array<int, 4> flower_counts{};
+};
+
 struct SimulationResult {
   bool success;
   WinAnalysis win_analysis;
   GameLog game_log;
   std::string error_message;
   std::map<int, std::vector<int>> starting_hands;
+  GameStateSnapshot game_state_snapshot;
 };
 
 class RecordSimulator {

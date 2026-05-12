@@ -2,11 +2,13 @@
 #include "analyzer/record_printer.h"
 #include <cxxopts.hpp>
 #include <glog/logging.h>
+#include <nlohmann/json.hpp>
 #include <fstream>
 #include <iostream>
 #include <filesystem>
 
 namespace fs = std::filesystem;
+using json = nlohmann::json;
 
 std::string ReadFile(const std::string& filepath) {
   std::ifstream file(filepath);
@@ -44,6 +46,9 @@ int CmdAnalyze(int argc, char* argv[]) {
       "Print detailed game steps",
       cxxopts::value<bool>()->default_value("false"))(
       "o,output", "Output file path (optional)", cxxopts::value<std::string>())(
+      "game-state",
+      "Output full game state as JSON to file",
+      cxxopts::value<std::string>())(
       "v,verbose",
       "Enable verbose logging",
       cxxopts::value<bool>()->default_value("false"))("h,help", "Print help");
@@ -146,6 +151,64 @@ int CmdAnalyze(int argc, char* argv[]) {
 
       std::cout << "Analysis result written to: " << output_file << std::endl;
       LOG(INFO) << "Analysis result written to: " << output_file;
+    }
+
+    if (result.count("game-state")) {
+      std::string gs_path = result["game-state"].as<std::string>();
+      std::ofstream gs_out(gs_path);
+      if (!gs_out.is_open()) {
+        std::cerr << "Error: Cannot write to game state file: " << gs_path
+                  << std::endl;
+        return 1;
+      }
+
+      const auto& snap = analysis_result.game_state_snapshot;
+      json gs_json;
+
+      gs_json["success"] = true;
+
+      // Starting hands
+      gs_json["initial_hands"] = json::array();
+      for (auto& [idx, hand] : analysis_result.starting_hands) {
+        gs_json["initial_hands"].push_back(hand);
+      }
+
+      // Final hands
+      gs_json["final_hands"] = json::array();
+      for (int i = 0; i < 4; ++i) {
+        gs_json["final_hands"].push_back(snap.final_hands[i]);
+      }
+
+      // Packs
+      gs_json["packs"] = json::array();
+      for (int i = 0; i < 4; ++i) {
+        json player_packs = json::array();
+        for (size_t j = 0; j < snap.packs[i].size(); ++j) {
+          json pack_obj;
+          pack_obj["tile_ids"] = snap.packs[i][j];
+          pack_obj["direction"] = snap.pack_directions[i][j];
+          player_packs.push_back(pack_obj);
+        }
+        gs_json["packs"].push_back(player_packs);
+      }
+
+      // Discards
+      gs_json["discards"] = json::array();
+      for (int i = 0; i < 4; ++i) {
+        gs_json["discards"].push_back(snap.discards[i]);
+      }
+
+      // Flower tiles
+      gs_json["flower_tiles"] = json::array();
+      for (int i = 0; i < 4; ++i) {
+        gs_json["flower_tiles"].push_back(snap.flower_tiles[i]);
+      }
+
+      gs_out << gs_json.dump(2) << "\n";
+      gs_out.close();
+
+      std::cout << "Game state written to: " << gs_path << std::endl;
+      LOG(INFO) << "Game state written to: " << gs_path;
     }
 
     return 0;
